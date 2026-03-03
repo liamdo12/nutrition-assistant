@@ -1,0 +1,99 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.expo/
+.next/
+out/
+bin/
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output
+
+# Expo
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+android/
+ios/
+
+# Prisma
+prisma/migrations/dev.db
+
+# TypeScript
+*.tsbuildinfo
+
+# CK meta commands
+prompt.md
+ck.md
+
+# Agent memory (project scope)
+.claude/agent-memory/
+
+# Hook diagnostics logs
+.claude/hooks/.logs/
+
+# Gemini CLI settings
+.gemini/settings.json
+.claude/settings.bak.json
+
+# External repos for study/reference
+external/
+
+# Git worktrees (local development only)
+worktrees/
+
+# Plans (local dev artifacts)
+plans/**/*
+!plans/templates/*
+
+# Misc
+screenshots/*
+docs/screenshots/*
+logs.txt
+repomix-output.xml
+.serena/cache
+__pycache__
+*.pem
+
+.claude/
+docs/*
+.repomixignore
+CLAUDE.md
+AGENTS.md
+release-manifest.json
+.opencode
