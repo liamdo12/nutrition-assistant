@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AgentModule } from './agent/agent.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaService } from './database/prisma.service';
+import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/app.config';
+import { DatabaseModule } from './database/database.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -12,9 +15,12 @@ import { validateEnv } from './config/app.config';
       envFilePath: '../../.env',
       validate: validateEnv,
     }),
+    DatabaseModule,
+    EventsModule,
+    AuthModule,
+    AgentModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
-  exports: [PrismaService],
+  providers: [AppService],
 })
 export class AppModule {}
