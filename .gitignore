@@ -19,6 +19,9 @@ bin/
 .env.local
 .env.*.local
 !.env.example
+env/**/docker.env
+env/**/app.env
+.docker.env
 
 # OS
 .DS_Store

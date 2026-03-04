@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolveEncryptedEnv } from './encrypted-env';
 
 const parseOrigins = (value: string): string[] =>
   value
@@ -19,6 +20,10 @@ const optionalPositivePort = z.preprocess(
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
+  CONFIG_REQUIRE_ENCRYPTED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(value => value === 'true'),
   DATABASE_URL: z.string().url(),
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default('7d'),
@@ -83,9 +88,11 @@ const envSchema = z.object({
 export type AppConfig = z.infer<typeof envSchema>;
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
-  const result = envSchema.safeParse(config);
+  const decryptedConfig = resolveEncryptedEnv(config);
+  const result = envSchema.safeParse(decryptedConfig);
   if (!result.success) {
-    throw new Error(`Invalid environment variables:\n${result.error.message}`);
+    const errors = result.error.issues.map(issue => `${issue.path.join('.') || 'env'}: ${issue.message}`);
+    throw new Error(`Invalid environment variables:\n${errors.join('\n')}`);
   }
   return result.data;
 }

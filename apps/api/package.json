@@ -7,6 +7,8 @@
     "build": "nest build",
     "predev": "yarn --cwd ../.. workspace @nutrition/shared build",
     "dev": "nest start --watch",
+    "config:keygen": "node scripts/env-crypto.mjs keygen",
+    "config:encrypt-env": "node scripts/env-crypto.mjs encrypt-env --file ../../.env --keys JWT_SECRET,POSTGRES_PASSWORD,POSTGRES_USER,POSTGRES_DB,DATABASE_URL,SMTP_HOST,SMTP_PORT,SMTP_USER,SMTP_PASS",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "test": "jest",
