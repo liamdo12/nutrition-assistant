@@ -59,9 +59,8 @@ export class PasswordResetMailerService {
       return;
     }
 
-    const maskedEmail = this.maskEmail(input.toEmail);
     this.logger.warn(
-      `EMAIL_PROVIDER=log -> password reset requested for ${maskedEmail} (expires ${input.expiresAt.toISOString()})`,
+      `EMAIL_PROVIDER=log -> password reset link for ${input.toEmail}: ${resetUrl} (expires ${input.expiresAt.toISOString()})`,
     );
   }
 
@@ -149,18 +148,5 @@ export class PasswordResetMailerService {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
-  }
-
-  private maskEmail(email: string): string {
-    const [localPart, domain] = email.split('@');
-    if (!localPart || !domain) {
-      return '***';
-    }
-
-    if (localPart.length <= 2) {
-      return `**@${domain}`;
-    }
-
-    return `${localPart.slice(0, 1)}***${localPart.slice(-1)}@${domain}`;
   }
 }

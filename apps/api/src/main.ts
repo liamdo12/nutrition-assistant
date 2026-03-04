@@ -10,26 +10,7 @@ import { AppConfig } from './config/app.config';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({
-      logger: {
-        redact: {
-          paths: [
-            'req.headers.authorization',
-            'req.headers.cookie',
-            'res.headers["set-cookie"]',
-            'req.body.password',
-            'req.body.newPassword',
-            'req.body.token',
-            'req.query.token',
-            'config.JWT_SECRET',
-            'config.DATABASE_URL',
-            'config.SMTP_PASS',
-            'config.CONFIG_DECRYPTION_KEY',
-          ],
-          censor: '[REDACTED]',
-        },
-      },
-    }),
+    new FastifyAdapter({ logger: true }),
   );
   const configService = app.get(ConfigService<AppConfig, true>);
 
