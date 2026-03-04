@@ -1,3 +1,5 @@
+// Load encrypted env into process.env before anything else reads config.
+import './config/secret-loader';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';

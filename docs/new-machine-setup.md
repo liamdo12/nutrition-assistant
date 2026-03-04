@@ -1,8 +1,10 @@
 # New Machine Setup (Windows)
 
-Huong dan setup tren may moi theo cau hinh hien tai cua project:
-- Postgres chay bang Docker
-- Backend doc env plaintext tu `.env`
+Huong dan setup theo cau hinh moi:
+- App dung `.env.local` (plaintext local only)
+- Tao `.env.encrypted` bang script AES-256-CBC
+- Runtime decrypt `.env.encrypted` bang `MASTER_KEY` truoc khi Nest bootstrap
+- Docker Compose chay ca `api + postgres`
 
 ## 1) Prerequisites
 
@@ -21,48 +23,56 @@ corepack prepare yarn@1.22.22 --activate
 cmd /c yarn -v
 ```
 
-## 2) Install
+## 2) Clone + install dependencies
 
 ```powershell
 cmd /c yarn install
 ```
 
-## 3) Tao file env
+## 3) Tao `.env.local` tu template
 
 ```powershell
-Copy-Item .env.example .env -Force
+Copy-Item .env.example .env.local -Force
 ```
 
-Mac dinh local nen dung:
+Cap nhat gia tri that trong `.env.local`:
+- `MASTER_KEY` (bat buoc, secret that)
+- `POSTGRES_*`
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `SMTP_*` neu dung SMTP
 
-```env
-POSTGRES_USER=nutrition
-POSTGRES_PASSWORD=nutrition_dev
-POSTGRES_DB=nutrition_assistant
-DATABASE_URL=postgresql://nutrition:nutrition_dev@localhost:5432/nutrition_assistant
-```
+Luu y quan trong:
+- Khong commit `.env.local`
+- Khong commit `MASTER_KEY`
 
-## 4) Start database
+## 4) Encrypt env local
 
 ```powershell
-docker compose up -d postgres
+cmd /c yarn env:encrypt
+```
+
+Lenh nay tao file `.env.encrypted` tu `.env.local`.
+
+## 5) Start stack bang Docker Compose
+
+```powershell
+docker compose up -d
 docker compose ps
 ```
 
-## 5) Prisma
+Compose se chay:
+- `postgres` service
+- `api` service
 
-```powershell
-cmd /c .\node_modules\.bin\prisma generate --schema apps/api/prisma/schema.prisma
-cmd /c .\node_modules\.bin\prisma db push --schema apps/api/prisma/schema.prisma
-```
+`api` container se:
+1. `yarn install`
+2. `yarn env:encrypt`
+3. `yarn workspace @nutrition/api prisma:generate`
+4. `yarn workspace @nutrition/api prisma:migrate:deploy`
+5. `yarn workspace @nutrition/api dev`
 
-## 6) Run backend
-
-```powershell
-cmd /c yarn workspace @nutrition/api dev
-```
-
-## 7) Verify
+## 6) Verify backend
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:3000/health
@@ -74,28 +84,58 @@ Swagger:
 http://127.0.0.1:3000/api/docs
 ```
 
-## 8) Troubleshooting nhanh
+## 7) Useful commands
 
-### Prisma loi auth DB
-
-Kiem tra Postgres:
+Encrypt lai env:
 
 ```powershell
-docker compose ps
-docker logs -f nutrition-db
+cmd /c yarn env:encrypt
 ```
 
-Neu can reset data DB (mat du lieu):
+Migrate DB (deploy mode):
+
+```powershell
+cmd /c yarn db:migrate
+```
+
+Migrate DB (dev mode):
+
+```powershell
+cmd /c yarn db:migrate:dev
+```
+
+Run API local (khong qua Docker):
+
+```powershell
+cmd /c yarn dev:api
+```
+
+## 8) Production note
+
+Production khong dung `.env.local`:
+- Inject env vars tu platform (Cloud Run, ECS, v.v.)
+- Inject `MASTER_KEY` tu secret manager
+- App van decrypt `.env.encrypted` neu file nay duoc cung cap trong runtime
+
+## 9) Troubleshooting
+
+### `MASTER_KEY is required to decrypt .env.encrypted`
+
+- Kiem tra `MASTER_KEY` co trong `.env.local` hoac runtime env.
+- Encrypt lai:
+
+```powershell
+cmd /c yarn env:encrypt
+```
+
+### API khong connect duoc DB
+
+- Kiem tra `DATABASE_URL` trong `.env.local`.
+- Neu API chay trong Docker Compose, host nen la `postgres` (khong phai `localhost`).
+
+### Reset DB data (mat du lieu)
 
 ```powershell
 docker compose down -v
-docker compose up -d postgres
-```
-
-### PowerShell chan yarn.ps1
-
-Dung wrapper `cmd /c`:
-
-```powershell
-cmd /c yarn workspace @nutrition/api dev
+docker compose up -d
 ```

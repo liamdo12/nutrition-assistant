@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Prisma resolves DATABASE_URL from process.env at runtime.
   url      = env("DATABASE_URL")
 }
 

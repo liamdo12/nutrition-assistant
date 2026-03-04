@@ -6,6 +6,11 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "dev:api": "yarn workspace @nutrition/api dev",
+    "start:decrypted": "yarn workspace @nutrition/api start:prod",
+    "env:encrypt": "node scripts/encrypt-env.mjs .env.local .env.encrypted",
+    "db:migrate:dev": "yarn workspace @nutrition/api prisma:migrate:dev",
+    "db:migrate": "yarn workspace @nutrition/api prisma:migrate:deploy",
     "lint": "turbo lint",
     "test": "turbo test",
     "typecheck": "turbo typecheck",

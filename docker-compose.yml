@@ -3,12 +3,46 @@ services:
     image: postgres:16-alpine
     container_name: nutrition-db
     restart: unless-stopped
+    # .env.local contains POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB for local dev.
+    env_file:
+      - .env.local
     ports:
       - '5432:5432'
-    env_file:
-      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: node:20-alpine
+    container_name: nutrition-api
+    restart: unless-stopped
+    working_dir: /workspace
+    env_file:
+      # Supplies MASTER_KEY and local runtime variables for the API container.
+      - .env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    volumes:
+      # Mount source code for fast local iteration.
+      - ./:/workspace
+      # Keep container node_modules isolated from host OS differences.
+      - /workspace/node_modules
+      - /workspace/apps/api/node_modules
+    command: >
+      sh -c "
+      yarn install &&
+      yarn env:encrypt &&
+      yarn workspace @nutrition/api prisma:generate &&
+      yarn workspace @nutrition/api prisma:migrate:deploy &&
+      yarn workspace @nutrition/api dev
+      "
 
 volumes:
   postgres_data:
