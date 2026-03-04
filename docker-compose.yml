@@ -3,9 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: nutrition-db
     restart: unless-stopped
-    # .env.local contains POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB for local dev.
-    env_file:
-      - .env.local
+    # Values are injected at compose runtime by scripts/compose-with-encrypted-env.mjs.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
     ports:
       - '5432:5432'
     volumes:
@@ -21,9 +23,11 @@ services:
     container_name: nutrition-api
     restart: unless-stopped
     working_dir: /workspace
-    env_file:
-      # Supplies MASTER_KEY and local runtime variables for the API container.
-      - .env.local
+    environment:
+      # MASTER_KEY comes from shell runtime env (system/CI secret).
+      MASTER_KEY: ${MASTER_KEY:?MASTER_KEY is required}
+      # Absolute path inside container; file is mounted from repo volume.
+      ENV_ENCRYPTED_PATH: /workspace/.env.encrypted
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,10 +42,7 @@ services:
     command: >
       sh -c "
       yarn install &&
-      yarn env:encrypt &&
-      yarn workspace @nutrition/api prisma:generate &&
-      yarn workspace @nutrition/api prisma:migrate:deploy &&
-      yarn workspace @nutrition/api dev
+      yarn docker:api:dev
       "
 
 volumes:

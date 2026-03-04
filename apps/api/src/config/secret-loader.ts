@@ -5,7 +5,7 @@ import { resolve } from 'path';
 const ENCRYPTED_VERSION = 'v1';
 
 /**
- * Minimal dotenv parser used for both .env.local and decrypted content.
+ * Minimal dotenv parser used for decrypted content.
  * Keeps this loader dependency-free and predictable across environments.
  */
 const parseEnvText = (content: string): Record<string, string> => {
@@ -49,35 +49,7 @@ const findFirstExistingPath = (paths: string[]): string | null => {
   return null;
 };
 
-/**
- * Reads MASTER_KEY from runtime env first.
- * If absent (typical in local dev), attempts to load it from .env.local.
- */
-const resolveMasterKey = (): string | null => {
-  const runtimeKey = process.env.MASTER_KEY?.trim();
-  if (runtimeKey) {
-    return runtimeKey;
-  }
-
-  const localEnvPath = findFirstExistingPath([
-    resolve(process.cwd(), '.env.local'),
-    resolve(process.cwd(), '../../.env.local'),
-    resolve(__dirname, '../../../../.env.local'),
-  ]);
-
-  if (!localEnvPath) {
-    return null;
-  }
-
-  const localEnv = parseEnvText(readFileSync(localEnvPath, 'utf8'));
-  const fileKey = localEnv.MASTER_KEY?.trim();
-  if (!fileKey) {
-    return null;
-  }
-
-  process.env.MASTER_KEY = fileKey;
-  return fileKey;
-};
+const resolveMasterKey = (): string | null => process.env.MASTER_KEY?.trim() ?? null;
 
 const decryptPayload = (payload: string, masterKey: string): string => {
   const [version, ivBase64, encryptedBase64] = payload.split(':');
@@ -109,15 +81,16 @@ export const loadEncryptedEnvIntoProcessEnv = (): void => {
     resolve(__dirname, '../../../../.env.encrypted'),
   ]);
 
-  // No encrypted file means nothing to decrypt (allowed for plain env deployments).
   if (!encryptedPath) {
-    return;
+    throw new Error(
+      '.env.encrypted not found. Runtime requires encrypted env file via default path or ENV_ENCRYPTED_PATH.',
+    );
   }
 
   const masterKey = resolveMasterKey();
   if (!masterKey) {
     throw new Error(
-      'MASTER_KEY is required to decrypt .env.encrypted. Inject it via platform secret or .env.local.',
+      'MASTER_KEY is required to decrypt .env.encrypted. Inject it via platform secret/runtime environment.',
     );
   }
 
@@ -135,4 +108,3 @@ export const loadEncryptedEnvIntoProcessEnv = (): void => {
 
 // Execute on import so secrets are available before Nest bootstraps modules.
 loadEncryptedEnvIntoProcessEnv();
-

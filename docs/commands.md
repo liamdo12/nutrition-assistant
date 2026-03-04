@@ -7,13 +7,12 @@ Tat ca lenh ben duoi chay tai root repo: `d:\nutrition-assistant`.
 ```powershell
 cmd /c yarn install
 Copy-Item .env.example .env -Force
-docker compose up -d postgres
-cmd /c .\node_modules\.bin\prisma generate --schema apps/api/prisma/schema.prisma
-cmd /c .\node_modules\.bin\prisma db push --schema apps/api/prisma/schema.prisma
-cmd /c yarn workspace @nutrition/api dev
+cmd /c yarn env:encrypt
+setx MASTER_KEY "<your_master_key>"
+cmd /c yarn docker:up
 ```
 
-Neu postgres khong start, kiem tra `.env` co 3 bien:
+Neu postgres khong start, kiem tra `.env` (truoc khi encrypt) co 3 bien:
 
 ```env
 POSTGRES_USER=nutrition
@@ -36,11 +35,18 @@ corepack enable
 corepack prepare yarn@1.22.22 --activate
 ```
 
-## 2) Install + Env
+## 2) Install + Encrypt Env
 
 ```powershell
 cmd /c yarn install
 Copy-Item .env.example .env -Force
+cmd /c yarn env:encrypt
+```
+
+Set `MASTER_KEY` cho session hien tai:
+
+```powershell
+$env:MASTER_KEY="<your_master_key>"
 ```
 
 ## 3) Docker Database
@@ -48,7 +54,7 @@ Copy-Item .env.example .env -Force
 Start/stop/restart Postgres:
 
 ```powershell
-docker compose up -d postgres
+cmd /c yarn docker:up
 docker compose stop postgres
 docker compose restart postgres
 ```
@@ -74,12 +80,14 @@ Push schema vao DB:
 cmd /c .\node_modules\.bin\prisma db push --schema apps/api/prisma/schema.prisma
 ```
 
+Neu gap `P3005` voi `migrate deploy`, dung `db push` cho local dev vi repo chua co migration files.
+
 ## 5) Run App
 
-Chay backend:
+Chay backend local (khong qua Docker, chi dung encrypted env):
 
 ```powershell
-cmd /c yarn workspace @nutrition/api dev
+cmd /c yarn dev:api:encrypted
 ```
 
 Hoac chay tu root:
@@ -253,5 +261,5 @@ Reset database data (xoa volume, mat du lieu):
 
 ```powershell
 docker compose down -v
-docker compose up -d postgres
+cmd /c yarn docker:up
 ```

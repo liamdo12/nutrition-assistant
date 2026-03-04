@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Encrypt `.env.local` -> `.env.encrypted` using AES-256-CBC.
+ * Encrypt `.env` -> `.env.encrypted` using AES-256-CBC.
  *
  * Why this exists:
  * - Keep app runtime compatible with process.env only.
@@ -9,7 +9,7 @@
  *
  * Usage:
  *   node scripts/encrypt-env.mjs
- *   node scripts/encrypt-env.mjs .env.local .env.encrypted
+ *   node scripts/encrypt-env.mjs .env .env.encrypted
  *
  * Notes:
  * - MASTER_KEY is read from process.env first, then falls back to MASTER_KEY inside source env file.
@@ -20,7 +20,7 @@ import { createCipheriv, createHash, randomBytes } from 'crypto';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 
-const SOURCE_ENV_PATH = resolve(process.cwd(), process.argv[2] ?? '.env.local');
+const SOURCE_ENV_PATH = resolve(process.cwd(), process.argv[2] ?? '.env');
 const OUTPUT_ENCRYPTED_PATH = resolve(process.cwd(), process.argv[3] ?? '.env.encrypted');
 
 /**
@@ -70,7 +70,7 @@ const parsedEnv = parseEnv(sourceContent);
 const masterKey = process.env.MASTER_KEY?.trim() || parsedEnv.MASTER_KEY?.trim();
 if (!masterKey) {
   throw new Error(
-    'MASTER_KEY is missing. Set it in process.env or inside .env.local before encryption.',
+    'MASTER_KEY is missing. Set it in process.env or inside .env before encryption.',
   );
 }
 if (masterKey.startsWith('<') && masterKey.endsWith('>')) {

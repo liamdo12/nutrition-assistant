@@ -12,9 +12,9 @@ import { EventsModule } from './events/events.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // In local development, prefer .env.local if present.
-      // In production, platform-injected environment variables take precedence.
-      envFilePath: ['../../.env.local', '.env.local', '../../.env'],
+      // Runtime configuration comes from process.env only.
+      // .env.encrypted is decrypted before bootstrap and injected into process.env.
+      ignoreEnvFile: true,
       validate: validateEnv,
     }),
     DatabaseModule,
