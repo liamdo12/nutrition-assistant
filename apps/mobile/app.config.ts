@@ -26,7 +26,25 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     package: 'com.nutritionassistant.app',
   },
-  plugins: ['expo-router'],
+  plugins: [
+    'expo-router',
+    [
+      'expo-camera',
+      {
+        cameraPermission:
+          'Allow Nutrition Assistant to access your camera to capture food photos and videos.',
+        microphonePermission:
+          'Allow Nutrition Assistant to use the microphone for video and audio recording.',
+      },
+    ],
+    [
+      'expo-av',
+      {
+        microphonePermission:
+          'Allow Nutrition Assistant to use the microphone for audio recording.',
+      },
+    ],
+  ],
   experiments: {
     typedRoutes: true,
   },

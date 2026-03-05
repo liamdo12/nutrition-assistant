@@ -17,6 +17,7 @@
     "@nutrition/shared": "*",
     "axios": "^1.7.0",
     "expo": "~55.0.4",
+    "expo-av": "^16.0.8",
     "expo-camera": "~16.0.0",
     "expo-constants": "~55.0.0",
     "expo-file-system": "~18.0.0",
