@@ -3,12 +3,47 @@ services:
     image: postgres:16-alpine
     container_name: nutrition-db
     restart: unless-stopped
+    # Values are injected at compose runtime by scripts/compose-with-encrypted-env.mjs.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
     ports:
       - '5432:5432'
-    env_file:
-      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: node:20-alpine
+    container_name: nutrition-api
+    restart: unless-stopped
+    working_dir: /workspace
+    environment:
+      # MASTER_KEY comes from shell runtime env (system/CI secret).
+      MASTER_KEY: ${MASTER_KEY:?MASTER_KEY is required}
+      # Absolute path inside container; file is mounted from repo volume.
+      ENV_ENCRYPTED_PATH: /workspace/.env.encrypted
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    volumes:
+      # Mount source code for fast local iteration.
+      - ./:/workspace
+      # Keep container node_modules isolated from host OS differences.
+      - /workspace/node_modules
+      - /workspace/apps/api/node_modules
+    command: >
+      sh -c "
+      yarn install &&
+      yarn docker:api:dev
+      "
 
 volumes:
   postgres_data:

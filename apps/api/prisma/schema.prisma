@@ -4,15 +4,65 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Prisma resolves DATABASE_URL from process.env at runtime.
   url      = env("DATABASE_URL")
 }
 
-// Placeholder — full schema added in feature phases
 model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  name                String
+  password            String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  tokenVersion        Int                  @default(0)
+  sessions            AgentSession[]
+  logs                NutritionLog[]
+  passwordResetTokens PasswordResetToken[]
+  revokedTokens       RevokedToken[]
+}
+
+model NutritionLog {
   id        String   @id @default(uuid())
-  email     String   @unique
-  name      String
-  password  String
+  userId    String
+  foodName  String
+  calories  Int?
+  protein   Float?
+  carbs     Float?
+  fats      Float?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model AgentSession {
+  id          String    @id @default(uuid())
+  userId      String?
+  sessionData Json?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  user        User?     @relation(fields: [userId], references: [id])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model RevokedToken {
+  id        String   @id @default(uuid())
+  userId    String?
+  jti       String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([expiresAt])
 }

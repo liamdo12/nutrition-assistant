@@ -83,7 +83,6 @@ plans/**/*
 
 # Misc
 screenshots/*
-docs/screenshots/*
 logs.txt
 repomix-output.xml
 .serena/cache
@@ -91,7 +90,6 @@ __pycache__
 *.pem
 
 .claude/
-docs/*
 .repomixignore
 CLAUDE.md
 AGENTS.md
