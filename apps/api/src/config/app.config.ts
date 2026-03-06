@@ -87,5 +87,6 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
   if (!result.success) {
     throw new Error(`Invalid environment variables:\n${result.error.message}`);
   }
+
   return result.data;
 }
