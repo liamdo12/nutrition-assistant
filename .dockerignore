@@ -1,0 +1,11 @@
+.git
+node_modules
+apps/mobile
+dist
+coverage
+*.md
+.env
+.env.*
+.claude
+plans
+docs
