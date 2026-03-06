@@ -3,6 +3,7 @@ import './config/secret-loader';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
 import { patchNestJsSwagger } from 'nestjs-zod';
@@ -14,6 +15,7 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({ logger: true }),
   );
+  app.useWebSocketAdapter(new IoAdapter(app));
   const configService = app.get(ConfigService<AppConfig, true>);
 
   await app.register(helmet, {

@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/app.config';
 import { DatabaseModule } from './database/database.module';
 import { EventsModule } from './events/events.module';
+import { MealAssistantModule } from './meal-assistant/meal-assistant.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { EventsModule } from './events/events.module';
     DatabaseModule,
     EventsModule,
     AuthModule,
+    MealAssistantModule,
     AgentModule,
   ],
   controllers: [AppController],

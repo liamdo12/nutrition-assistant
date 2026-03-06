@@ -18,6 +18,8 @@ model User {
   tokenVersion        Int                  @default(0)
   sessions            AgentSession[]
   logs                NutritionLog[]
+  recipes             Recipe[]
+  recipeFeedbacks     RecipeFeedback[]
   passwordResetTokens PasswordResetToken[]
   revokedTokens       RevokedToken[]
 }
@@ -65,4 +67,56 @@ model RevokedToken {
   user      User?    @relation(fields: [userId], references: [id])
 
   @@index([expiresAt])
+}
+
+enum RecipeImageKind {
+  INPUT
+  COOKED
+}
+
+model Recipe {
+  id                 String           @id @default(uuid())
+  userId             String
+  language           String           @default("en")
+  inputImageUrl      String
+  recipeTitle        String
+  selectedDishName   String
+  selectedDishReason String
+  suggestionsJson    Json
+  ingredientsJson    Json
+  stepsJson          Json
+  notesJson          Json?
+  nutritionJson      Json?
+  modelName          String
+  createdAt          DateTime         @default(now())
+  user               User             @relation(fields: [userId], references: [id])
+  images             RecipeImage[]
+  feedback           RecipeFeedback?
+
+  @@index([userId, createdAt])
+}
+
+model RecipeImage {
+  id        String         @id @default(uuid())
+  recipeId  String
+  kind      RecipeImageKind
+  imageUrl  String
+  createdAt DateTime       @default(now())
+  recipe    Recipe         @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId, kind])
+}
+
+model RecipeFeedback {
+  id        String    @id @default(uuid())
+  recipeId  String    @unique
+  userId    String
+  rating    Int
+  note      String?
+  ateAt     DateTime?
+  createdAt DateTime  @default(now())
+  recipe    Recipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
