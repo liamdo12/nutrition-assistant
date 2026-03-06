@@ -61,6 +61,7 @@ jobs:
           env_vars: |
             NODE_ENV=production
             DATABASE_URL=${{ secrets.DATABASE_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
           flags: |
             --memory=512Mi
             --cpu=1
@@ -68,5 +69,4 @@ jobs:
             --timeout=300
             --max-instances=100
             --min-instances=0
-            --allow-unauthenticated
             --port=8080
