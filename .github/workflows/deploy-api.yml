@@ -60,8 +60,7 @@ jobs:
           image: ${{ env.IMAGE }}:${{ github.sha }}
           env_vars: |
             NODE_ENV=production
-          secrets: |
-            DATABASE_URL=DATABASE_URL:latest
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
           flags: |
             --memory=512Mi
             --cpu=1
