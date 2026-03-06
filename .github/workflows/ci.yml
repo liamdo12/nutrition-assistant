@@ -14,28 +14,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: 'yarn'
 
       - name: Setup Turborepo cache
         uses: rharkor/caching-for-turbo@v1.5
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: yarn install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm --filter @nutrition/api exec prisma generate
+        run: yarn workspace @nutrition/api exec prisma generate
+
+      - name: Lint
+        run: yarn lint
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: yarn typecheck
 
       - name: Build
-        run: pnpm build
+        run: yarn build
