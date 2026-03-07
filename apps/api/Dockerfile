@@ -10,6 +10,10 @@ RUN yarn workspace @nutrition/api exec prisma generate
 # Build shared package first, then API
 RUN yarn workspace @nutrition/shared build || true
 RUN yarn workspace @nutrition/api build
+# Flatten workspace-local deps into root node_modules for single-dir production image
+RUN cp -a /app/apps/api/node_modules/. /app/node_modules/ \
+    && rm -rf /app/node_modules/@nutrition/shared \
+    && cp -a /app/packages/shared /app/node_modules/@nutrition/shared
 
 # Stage 2: Production
 FROM node:22-alpine AS production
@@ -23,7 +27,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nodejs:nodejs /app/apps/api/package.json ./
 
-# Copy all dependencies (hoisted to root by yarn workspaces)
+# Copy all dependencies (root + workspace-local merged in builder)
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 
 USER nodejs
