@@ -50,5 +50,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     apiUrl: process.env.API_URL ?? 'http://localhost:3000',
+    eas: {
+      projectId: 'da3f66a5-0cb8-45fb-ab7c-62aa30ffd7f0',
+    },
   },
 });
