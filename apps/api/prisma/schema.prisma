@@ -30,6 +30,7 @@ model NutritionLog {
   protein   Float?
   carbs     Float?
   fats      Float?
+  imagePath String?  // GCS object path: "users/{userId}/{uuid}.jpg"
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
 }
