@@ -16,7 +16,7 @@ const analysisTokenPayloadSchema = z.object({
   iat: z.number().int().nonnegative(),
   exp: z.number().int().nonnegative(),
   data: z.object({
-    inputImageUrl: z.string().url(),
+    inputImageUrl: z.string().url().optional(),
     locale: z.string().min(2).max(20),
     constraints: z.string().max(1000).optional(),
     suggestions: z.array(mealDishSuggestionSchema).length(5),
@@ -43,7 +43,7 @@ type RecipeTokenPayload = z.infer<typeof recipeTokenPayloadSchema>;
 
 interface SignAnalysisTokenInput {
   readonly userId: string;
-  readonly inputImageUrl: string;
+  readonly inputImageUrl?: string;
   readonly locale: string;
   readonly constraints?: string;
   readonly suggestions: MealDishSuggestion[];

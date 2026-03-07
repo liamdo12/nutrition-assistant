@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import {
   MealDishSuggestion,
   mealGenerateRecipeRequestSchema,
@@ -19,6 +24,7 @@ import { DomainEventsService } from '../events/domain-events.service';
 import { FirebaseStorageUrlService } from './firebase-storage-url.service';
 import { GeminiService } from './gemini.service';
 import { MealDraftTokenService } from './meal-draft-token.service';
+import { z } from 'zod';
 
 @Injectable()
 export class MealAssistantService {
@@ -31,11 +37,19 @@ export class MealAssistantService {
   ) {}
 
   async suggestDishes(user: AuthenticatedUser, rawInput: unknown) {
-    const input = parseWithSchema(mealSuggestDishesRequestSchema, rawInput);
-    const inputImageUrl = this.firebaseStorageUrlService.validateImageUrl(
-      input.inputImageUrl,
-      'inputImageUrl',
-    );
+    const input = parseWithSchema(mealSuggestDishesInternalRequestSchema, rawInput);
+    const inputImageUrl = input.inputImageUrl
+      ? this.firebaseStorageUrlService.validateImageUrl(input.inputImageUrl, 'inputImageUrl')
+      : undefined;
+
+    const hasInlineImage = Boolean(input.imageBase64 && input.imageMimeType);
+    const hasImageUrl = Boolean(inputImageUrl);
+
+    if (!hasInlineImage && !hasImageUrl) {
+      throw new BadRequestException(
+        'Provide either an uploaded image file or inputImageUrl for suggest-dishes',
+      );
+    }
 
     this.domainEvents.publish({
       type: 'meal.suggest.requested',
@@ -47,6 +61,8 @@ export class MealAssistantService {
 
     try {
       const suggestResult = await this.geminiService.suggestDishesFromImage({
+        imageBase64: input.imageBase64,
+        imageMimeType: input.imageMimeType,
         inputImageUrl,
         locale: input.locale,
         constraints: input.constraints,
@@ -170,6 +186,18 @@ export class MealAssistantService {
       analysisPayload.data.suggestions,
       recipePayload.data.selectedDishId,
     );
+    const inputImageUrl = analysisPayload.data.inputImageUrl
+      ? this.firebaseStorageUrlService.validateImageUrl(
+          analysisPayload.data.inputImageUrl,
+          'analysisToken.inputImageUrl',
+        )
+      : null;
+
+    if (!inputImageUrl) {
+      throw new BadRequestException(
+        'analysisToken is missing inputImageUrl. Pass inputImageUrl in suggest-dishes if you want to save result history.',
+      );
+    }
 
     const cookedImageUrl = this.firebaseStorageUrlService.validateImageUrl(
       input.cookedImageUrl,
@@ -184,7 +212,7 @@ export class MealAssistantService {
         data: {
           userId: user.id,
           language: analysisPayload.data.locale,
-          inputImageUrl: analysisPayload.data.inputImageUrl,
+          inputImageUrl,
           recipeTitle: recipe.title,
           selectedDishName: selectedDish.name,
           selectedDishReason: selectedDish.reason,
@@ -212,7 +240,7 @@ export class MealAssistantService {
           {
             recipeId: recipeRecord.id,
             kind: 'INPUT',
-            imageUrl: analysisPayload.data.inputImageUrl,
+            imageUrl: inputImageUrl,
           },
           {
             recipeId: recipeRecord.id,
@@ -358,6 +386,10 @@ export class MealAssistantService {
 }
 
 const zArrayOfDishes = mealSuggestDishesResponseSchema.shape.suggestions;
+const mealSuggestDishesInternalRequestSchema = mealSuggestDishesRequestSchema.extend({
+  imageBase64: z.string().min(1).optional(),
+  imageMimeType: z.string().trim().min(3).max(120).optional(),
+});
 const zArrayOfIngredients = mealGenerateRecipeResponseSchema.shape.recipe.shape.ingredients;
 const zArrayOfSteps = mealGenerateRecipeResponseSchema.shape.recipe.shape.steps;
 const zArrayOfNotes = mealGenerateRecipeResponseSchema.shape.recipe.shape.notes;

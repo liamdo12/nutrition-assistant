@@ -11,7 +11,9 @@ import { Logger, UnauthorizedException } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import {
   mealLiveClientAudioChunkSchema,
+  mealLiveClientContextSyncSchema,
   mealLiveClientTextInputSchema,
+  mealLiveServerContextSyncedSchema,
   mealLiveServerErrorSchema,
   mealLiveServerModelAudioChunkSchema,
   mealLiveServerModelTextSchema,
@@ -24,6 +26,7 @@ import { parseWithSchema } from '../common/validation/zod-validation';
 import { DomainEventsService } from '../events/domain-events.service';
 import { AuthRepository } from '../auth/auth.repository';
 import { GeminiLiveSession, GeminiService } from '../meal-assistant/gemini.service';
+import { MealDraftTokenService } from '../meal-assistant/meal-draft-token.service';
 
 interface LiveSocketData {
   userId: string;
@@ -48,6 +51,7 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
     private readonly authRepository: AuthRepository,
     private readonly domainEvents: DomainEventsService,
     private readonly geminiService: GeminiService,
+    private readonly mealDraftTokenService: MealDraftTokenService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -172,6 +176,54 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
 
     await data.session.endTurn();
+  }
+
+  @SubscribeMessage('meal_context')
+  async onMealContext(@ConnectedSocket() client: Socket, @MessageBody() rawBody: unknown): Promise<void> {
+    const data = client.data.live as LiveSocketData | undefined;
+    if (!data) {
+      client.disconnect(true);
+      return;
+    }
+
+    const body = parseWithSchema(mealLiveClientContextSyncSchema, rawBody);
+    const analysisPayload = this.mealDraftTokenService.verifyAnalysisToken(body.analysisToken, data.userId);
+    const selectedDish = body.selectedDishId
+      ? analysisPayload.data.suggestions.find(dish => dish.id === body.selectedDishId)
+      : undefined;
+
+    const lines = [
+      'Conversation context update for meal assistant.',
+      'Use this context for all next user turns unless user asks to reset topic.',
+      `Locale: ${analysisPayload.data.locale}`,
+      `Constraints: ${analysisPayload.data.constraints ?? 'none'}`,
+      'Dish suggestions:',
+      ...analysisPayload.data.suggestions.map(
+        (dish, index) => `${index + 1}. ${dish.name} - ${dish.reason}`,
+      ),
+      `Selected dish: ${selectedDish?.name ?? 'not selected yet'}`,
+      `Preferences: ${body.preferences ?? 'none'}`,
+      'Acknowledge this context in one short sentence.',
+    ];
+
+    await data.session.sendTextInput(lines.join('\n'));
+
+    const synced = parseWithSchema(mealLiveServerContextSyncedSchema, {
+      analysisJti: analysisPayload.jti,
+      selectedDishId: selectedDish?.id ?? null,
+      suggestionsCount: analysisPayload.data.suggestions.length,
+    });
+    client.emit('meal_context_synced', synced);
+
+    this.domainEvents.publish({
+      type: 'agent.live.context.synced',
+      userId: data.userId,
+      payload: {
+        socketId: client.id,
+        analysisJti: analysisPayload.jti,
+        selectedDishId: selectedDish?.id ?? null,
+      },
+    });
   }
 
   private extractToken(client: Socket): string {

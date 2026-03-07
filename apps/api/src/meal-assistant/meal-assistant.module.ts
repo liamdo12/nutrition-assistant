@@ -10,6 +10,6 @@ import { MealAssistantService } from './meal-assistant.service';
   imports: [AuthModule],
   controllers: [MealAssistantController],
   providers: [MealAssistantService, MealDraftTokenService, FirebaseStorageUrlService, GeminiService],
-  exports: [GeminiService],
+  exports: [GeminiService, MealDraftTokenService],
 })
 export class MealAssistantModule {}

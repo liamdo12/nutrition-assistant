@@ -83,6 +83,7 @@ docker compose ps
 Compose se chay:
 - `postgres` service
 - `api` service
+- `api` se tu override `DATABASE_URL` sang host `postgres:5432` ben trong Docker
 
 `api` container se chay:
 1. `yarn install`
@@ -197,6 +198,7 @@ cmd /c yarn env:encrypt
 ```
 
 - Neu API chay trong Docker Compose, host nen la `postgres` (khong phai `localhost`).
+- Compose da override `DATABASE_URL` tu `POSTGRES_*`, nen khong phu thuoc `DATABASE_URL` local tren may host.
 
 ### `P3005` khi Docker chay `prisma migrate deploy`
 

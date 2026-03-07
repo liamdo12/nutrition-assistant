@@ -6,6 +6,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { patchNestJsSwagger } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { AppConfig } from './config/app.config';
@@ -21,6 +22,12 @@ async function bootstrap() {
   await app.register(helmet, {
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
+  });
+  await app.register(multipart, {
+    limits: {
+      fileSize: 8 * 1024 * 1024,
+      files: 1,
+    },
   });
 
   // Global prefix

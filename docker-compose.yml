@@ -28,6 +28,8 @@ services:
       MASTER_KEY: ${MASTER_KEY:?MASTER_KEY is required}
       # Absolute path inside container; file is mounted from repo volume.
       ENV_ENCRYPTED_PATH: /workspace/.env.encrypted
+      # Force Docker-internal DB host regardless of host-machine DATABASE_URL.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
       postgres:
         condition: service_healthy

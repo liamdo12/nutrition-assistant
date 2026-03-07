@@ -20,9 +20,9 @@ export const mealDishSuggestionSchema = z.object({
 });
 
 export const mealSuggestDishesRequestSchema = z.object({
-  inputImageUrl: z.string().url().max(2048),
   locale: z.string().trim().min(2).max(20).default('en'),
   constraints: z.string().trim().min(1).max(1000).optional(),
+  inputImageUrl: z.string().url().max(2048).optional(),
 });
 
 export const mealSuggestDishesResponseSchema = z.object({
@@ -119,6 +119,12 @@ export const mealLiveClientTextInputSchema = z.object({
   text: z.string().trim().min(1).max(2000),
 });
 
+export const mealLiveClientContextSyncSchema = z.object({
+  analysisToken: z.string().min(20),
+  selectedDishId: z.string().trim().min(1).max(120).optional(),
+  preferences: z.string().trim().min(1).max(1000).optional(),
+});
+
 export const mealLiveServerTranscriptPartialSchema = z.object({
   text: z.string(),
 });
@@ -145,6 +151,12 @@ export const mealLiveServerSessionClosedSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
+export const mealLiveServerContextSyncedSchema = z.object({
+  analysisJti: z.string().uuid(),
+  selectedDishId: z.string().trim().min(1).max(120).nullable(),
+  suggestionsCount: z.number().int().nonnegative().max(20),
+});
+
 export type MealDishSuggestion = z.infer<typeof mealDishSuggestionSchema>;
 export type MealGeneratedRecipe = z.infer<typeof mealGeneratedRecipeSchema>;
 export type MealSuggestDishesRequest = z.infer<typeof mealSuggestDishesRequestSchema>;
@@ -156,3 +168,5 @@ export type MealSaveResponse = z.infer<typeof mealSaveResponseSchema>;
 export type MealHistoryQuery = z.infer<typeof mealHistoryQuerySchema>;
 export type MealHistoryResponse = z.infer<typeof mealHistoryResponseSchema>;
 export type MealHistoryDetailResponse = z.infer<typeof mealHistoryDetailResponseSchema>;
+export type MealLiveClientContextSync = z.infer<typeof mealLiveClientContextSyncSchema>;
+export type MealLiveServerContextSynced = z.infer<typeof mealLiveServerContextSyncedSchema>;
