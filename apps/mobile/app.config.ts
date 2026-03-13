@@ -21,8 +21,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#ffffff',
+      foregroundImage: './assets/android-icon-foreground.png',
+      backgroundImage: './assets/android-icon-background.png',
+      monochromeImage: './assets/android-icon-monochrome.png',
     },
     package: 'com.nutritionassistant.app',
   },
@@ -38,7 +39,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
-      'expo-av',
+      'expo-audio',
       {
         microphonePermission:
           'Allow Nutrition Assistant to use the microphone for audio recording.',
@@ -50,5 +51,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     apiUrl: process.env.API_URL ?? 'http://localhost:3000',
+    eas: {
+      projectId: 'da3f66a5-0cb8-45fb-ab7c-62aa30ffd7f0',
+    },
   },
 });

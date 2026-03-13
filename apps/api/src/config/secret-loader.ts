@@ -82,6 +82,11 @@ export const loadEncryptedEnvIntoProcessEnv = (): void => {
   ]);
 
   if (!encryptedPath) {
+    // In production (Cloud Run), env vars come from Secret Manager / env_vars directly.
+    // Skip decryption when .env.encrypted is absent and DATABASE_URL is already set.
+    if (process.env.DATABASE_URL) {
+      return;
+    }
     throw new Error(
       '.env.encrypted not found. Runtime requires encrypted env file via default path or ENV_ENCRYPTED_PATH.',
     );

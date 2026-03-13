@@ -8,6 +8,7 @@ import { validateEnv } from './config/app.config';
 import { DatabaseModule } from './database/database.module';
 import { EventsModule } from './events/events.module';
 import { MealAssistantModule } from './meal-assistant/meal-assistant.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { MealAssistantModule } from './meal-assistant/meal-assistant.module';
     AuthModule,
     MealAssistantModule,
     AgentModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

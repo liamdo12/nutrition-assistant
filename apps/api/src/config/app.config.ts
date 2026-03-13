@@ -39,6 +39,8 @@ const envSchema = z.object({
     .default('false')
     .transform(value => value === 'true'),
   RESEND_API_KEY: optionalNonEmptyString,
+  GCS_BUCKET_NAME: optionalNonEmptyString,
+  GCP_PROJECT_ID: optionalNonEmptyString,
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:3000,http://localhost:8081')
@@ -91,5 +93,6 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
   if (!result.success) {
     throw new Error(`Invalid environment variables:\n${result.error.message}`);
   }
+
   return result.data;
 }

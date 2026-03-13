@@ -1,5 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Audio } from 'expo-av';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  useAudioRecorder,
+  useAudioRecorderState,
+  RecordingPresets,
+  AudioModule,
+} from 'expo-audio';
 
 interface UseAudioRecorderReturn {
   isRecording: boolean;
@@ -9,103 +14,91 @@ interface UseAudioRecorderReturn {
   stopRecording: () => Promise<string | null>;
 }
 
-/** Custom hook encapsulating expo-av Audio.Recording lifecycle */
-export function useAudioRecorder(maxDuration = 300): UseAudioRecorderReturn {
-  const [isRecording, setIsRecording] = useState(false);
+/** Custom hook encapsulating expo-audio recording lifecycle */
+export function useAudioRecorderHook(maxDuration = 300): UseAudioRecorderReturn {
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+
   const [duration, setDuration] = useState(0);
-  const [meterLevel, setMeterLevel] = useState(0);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const [isActive, setIsActive] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const meterRef = useRef<NodeJS.Timeout | null>(null);
 
-  const cleanup = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (meterRef.current) clearInterval(meterRef.current);
-    timerRef.current = null;
-    meterRef.current = null;
-  }, []);
+  // Derive metering: normalize dB (-160..0) to 0..1
+  const meterLevel =
+    isActive && recorderState.metering !== undefined
+      ? Math.max(0, (recorderState.metering + 160) / 160)
+      : 0;
 
-  // Cleanup on unmount — stop orphan recordings
-  useEffect(() => {
-    return () => {
-      cleanup();
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch(() => {});
-      }
-    };
-  }, [cleanup]);
-
-  /** Stops the active recording and returns the file URI, or null on failure */
   const stopRecording = useCallback(async (): Promise<string | null> => {
-    cleanup();
-    setIsRecording(false);
-    setMeterLevel(0);
-
-    if (!recordingRef.current) return null;
+    setIsActive(false);
+    setDuration(0);
 
     try {
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-
-      return uri ?? null;
+      await recorder.stop();
+      return recorder.uri ?? null;
     } catch (error) {
       console.error('Failed to stop recording:', error);
-      recordingRef.current = null;
       return null;
     }
-  }, [cleanup]);
+  }, [recorder]);
 
-  /** Requests permission, configures audio mode, and starts recording */
+  // Duration timer with auto-stop at maxDuration
+  const stopRecordingRef = useRef(stopRecording);
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+  }, [stopRecording]);
+
+  useEffect(() => {
+    if (isActive) {
+      let elapsed = 0;
+      timerRef.current = setInterval(() => {
+        elapsed += 1;
+        if (elapsed >= maxDuration) {
+          stopRecordingRef.current();
+          return;
+        }
+        setDuration(elapsed);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isActive, maxDuration]);
+
   const startRecording = useCallback(async () => {
-    const permission = await Audio.requestPermissionsAsync();
-    if (permission.status !== 'granted') {
+    const status = await AudioModule.requestRecordingPermissionsAsync();
+    if (!status.granted) {
       throw new Error('Microphone permission denied');
     }
 
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
+    await AudioModule.setAudioModeAsync({
+      playsInSilentMode: true,
+      allowsRecording: true,
     });
+    await recorder.prepareToRecordAsync({ isMeteringEnabled: true });
+    recorder.record();
 
-    const recording = new Audio.Recording();
-    await recording.prepareToRecordAsync({
-      ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      isMeteringEnabled: true,
-    });
-    await recording.startAsync();
-
-    recordingRef.current = recording;
-    setIsRecording(true);
+    setIsActive(true);
     setDuration(0);
-    setMeterLevel(0);
+  }, [recorder]);
 
-    // Duration timer — auto-stops when maxDuration is reached
-    let elapsed = 0;
-    timerRef.current = setInterval(() => {
-      elapsed += 1;
-      setDuration(elapsed);
-      if (elapsed >= maxDuration) {
-        stopRecording();
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isActive) {
+        recorder.stop().catch(() => {});
       }
-    }, 1000);
+    };
+  }, [isActive, recorder]);
 
-    // Metering poll (100ms)
-    meterRef.current = setInterval(async () => {
-      try {
-        const status = await recording.getStatusAsync();
-        if (status.isRecording && status.metering !== undefined) {
-          // Normalize dB (-160..0) to 0..1
-          const normalized = Math.max(0, (status.metering + 160) / 160);
-          setMeterLevel(normalized);
-        }
-      } catch {
-        // Recording may have stopped
-      }
-    }, 100);
-  }, [maxDuration, stopRecording]);
-
-  return { isRecording, duration, meterLevel, startRecording, stopRecording };
+  return {
+    isRecording: isActive,
+    duration,
+    meterLevel,
+    startRecording,
+    stopRecording,
+  };
 }
