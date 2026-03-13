@@ -1,11 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { MealDishSuggestion } from '@nutrition/shared';
 import { useMediaStore } from '../../src/store/media.store';
-import { NutritionResultsPopup } from '../../src/components/ui/nutrition-results-popup';
+import { DishSuggestionsPopup } from '../../src/components/ui/nutrition-results-popup';
 import { ModeTogglePill } from '../../src/components/ui/mode-toggle-pill';
+import { suggestDishes } from '../../src/services/meal-assistant-api';
+import { extractApiErrorMessage } from '../../src/services/extract-api-error-message';
 
 const FLASH_MODES = ['off', 'on', 'auto'] as const;
 type FlashMode = (typeof FLASH_MODES)[number];
@@ -27,6 +30,39 @@ export default function PhotoCaptureScreen() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+
+  // API state
+  const [suggestions, setSuggestions] = useState<MealDishSuggestion[]>([]);
+  const [analysisToken, setAnalysisToken] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState<'loading' | 'error' | 'success'>('loading');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Call suggest-dishes API when a photo is captured (or retry is triggered)
+  useEffect(() => {
+    if (!capturedUri) return;
+
+    const controller = new AbortController();
+    setApiStatus('loading');
+    setSuggestions([]);
+    setAnalysisToken(null);
+    setErrorMessage('');
+
+    suggestDishes(capturedUri, controller.signal)
+      .then(response => {
+        if (controller.signal.aborted) return;
+        setSuggestions(response.suggestions);
+        setAnalysisToken(response.analysisToken);
+        setApiStatus('success');
+      })
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        setApiStatus('error');
+        setErrorMessage(extractApiErrorMessage(error));
+      });
+
+    return () => controller.abort();
+  }, [capturedUri, retryCount]);
 
   // Permission loading
   if (!permission) return <View className="flex-1 bg-black" />;
@@ -71,13 +107,29 @@ export default function PhotoCaptureScreen() {
     }
   };
 
-  const handleRetake = () => setCapturedUri(null);
+  const handleRetake = () => {
+    setCapturedUri(null);
+    setSuggestions([]);
+    setAnalysisToken(null);
+    setApiStatus('loading');
+    setErrorMessage('');
+  };
 
   const handleSave = () => {
     if (capturedUri) {
       addItem({ uri: capturedUri, type: 'photo', createdAt: Date.now() });
     }
-    setCapturedUri(null);
+    handleRetake();
+  };
+
+  const handleRetry = () => {
+    if (!capturedUri) return;
+    setRetryCount(c => c + 1);
+  };
+
+  const handleSelectDish = (dish: MealDishSuggestion) => {
+    // Future: navigate to generate-recipe screen
+    console.log('Selected dish:', dish.id, dish.name);
   };
 
   return (
@@ -125,13 +177,20 @@ export default function PhotoCaptureScreen() {
         </View>
       </CameraView>
 
-      {/* Nutrition results popup */}
-      <NutritionResultsPopup
+      {/* Dish suggestions popup */}
+      <DishSuggestionsPopup
         visible={capturedUri !== null}
         imageUri={capturedUri ?? ''}
+        status={apiStatus}
+        suggestions={suggestions}
+        analysisToken={analysisToken}
+        errorMessage={errorMessage}
         onRetake={handleRetake}
         onClose={handleSave}
+        onSelectDish={handleSelectDish}
+        onRetry={handleRetry}
       />
     </View>
   );
 }
+
