@@ -395,6 +395,18 @@
                 <option value="">(No suggestion yet)</option>
               </select>
             </div>
+            <div class="field">
+              <label for="mealRating">Rating</label>
+              <input id="mealRating" type="number" min="1" max="5" value="5" />
+            </div>
+            <div class="field">
+              <label for="mealAteAt">Ate At</label>
+              <input id="mealAteAt" type="datetime-local" />
+            </div>
+            <div class="field full">
+              <label for="mealNote">Save Note</label>
+              <input id="mealNote" placeholder="How did it turn out?" />
+            </div>
           </div>
           <div class="row top-actions">
             <button type="button" id="startCamBtn">Start Cam</button>
@@ -406,6 +418,7 @@
           <div class="row">
             <button type="button" id="syncContextBtn" class="secondary">Sync Context</button>
             <button type="button" id="generateRecipeBtn" class="secondary">Generate Recipe</button>
+            <button type="button" id="saveRecipeBtn" class="secondary">Save Recipe</button>
             <button type="button" id="runMealFlowBtn" class="secondary">Run Meal Flow</button>
           </div>
           <div class="media">
@@ -420,6 +433,7 @@
           <div class="split">
             <pre id="suggestRaw" class="raw"></pre>
             <pre id="generateRaw" class="raw"></pre>
+            <pre id="saveRaw" class="raw"></pre>
           </div>
           <div class="meta">
             <strong>Live Logs</strong>
@@ -461,18 +475,23 @@
         mealConstraints: document.getElementById('mealConstraints'),
         mealServings: document.getElementById('mealServings'),
         mealPreferences: document.getElementById('mealPreferences'),
+        mealRating: document.getElementById('mealRating'),
+        mealAteAt: document.getElementById('mealAteAt'),
+        mealNote: document.getElementById('mealNote'),
         dishSelect: document.getElementById('dishSelect'),
         startCamBtn: document.getElementById('startCamBtn'),
         stopCamBtn: document.getElementById('stopCamBtn'),
         captureSuggestBtn: document.getElementById('captureSuggestBtn'),
         syncContextBtn: document.getElementById('syncContextBtn'),
         generateRecipeBtn: document.getElementById('generateRecipeBtn'),
+        saveRecipeBtn: document.getElementById('saveRecipeBtn'),
         runMealFlowBtn: document.getElementById('runMealFlowBtn'),
         webcamPreview: document.getElementById('webcamPreview'),
         capturedImage: document.getElementById('capturedImage'),
         webcamCanvas: document.getElementById('webcamCanvas'),
         suggestRaw: document.getElementById('suggestRaw'),
         generateRaw: document.getElementById('generateRaw'),
+        saveRaw: document.getElementById('saveRaw'),
         status: document.getElementById('status'),
         logs: document.getElementById('logs'),
       };
@@ -491,8 +510,35 @@
         mealContextSyncTimer = null,
         latestAnalysisToken = '',
         latestSuggestionItems = [],
+        latestInputImageUrl = '',
+        latestRecipeToken = '',
+        latestCapturedImageBlob = null,
         activeMode = 'talk';
       const TARGET_SAMPLE_RATE = 16000;
+      function toLocalDateTimeValue(date) {
+        const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return offsetDate.toISOString().slice(0, 16);
+      }
+      function setDefaultMealMeta() {
+        el.mealRating.value = '5';
+        el.mealAteAt.value = toLocalDateTimeValue(new Date());
+        el.mealNote.value = '';
+      }
+      function toIsoDateTimeOrUndefined(value) {
+        if (!value) return undefined;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+          throw new Error('Ate At must be a valid date/time');
+        }
+        return parsed.toISOString();
+      }
+      function clearRecipeDraftState(clearRaw) {
+        latestRecipeToken = '';
+        if (clearRaw) {
+          setRaw(el.generateRaw, '');
+          setRaw(el.saveRaw, '');
+        }
+      }
       function setStatus(text, kind) {
         el.status.textContent = text;
         el.status.className = `status-pill ${kind || 'warn'}`;
@@ -538,6 +584,9 @@
       function resetLocalContextState() {
         latestAnalysisToken = '';
         latestSuggestionItems = [];
+        latestInputImageUrl = '';
+        latestCapturedImageBlob = null;
+        clearRecipeDraftState(true);
         if (mealContextSyncTimer) {
           clearTimeout(mealContextSyncTimer);
           mealContextSyncTimer = null;
@@ -548,8 +597,8 @@
         el.capturedImage.removeAttribute('src');
         setDishOptions([]);
         setRaw(el.suggestRaw, '');
-        setRaw(el.generateRaw, '');
         resetChatFeed('Context reset. Start a new meal conversation.');
+        setDefaultMealMeta();
         updateButtons();
       }
       async function reconnectSocketAfterReset() {
@@ -608,7 +657,10 @@
           recording = captureActive,
           camReady = Boolean(webcamStream),
           hasToken = Boolean(el.token.value.trim()),
-          hasAnalysis = Boolean(latestAnalysisToken);
+          hasAnalysis = Boolean(latestAnalysisToken),
+          hasRecipe = Boolean(latestRecipeToken),
+          canSaveImage = Boolean(webcamStream || latestCapturedImageBlob),
+          canSaveRecipe = hasToken && hasAnalysis && hasRecipe && Boolean(latestInputImageUrl) && canSaveImage;
         el.connectBtn.disabled = connected;
         el.disconnectBtn.disabled = !connected;
         el.sendTextBtn.disabled = !connected;
@@ -620,6 +672,7 @@
         el.captureSuggestBtn.disabled = !camReady || !hasToken || mealFlowInProgress;
         el.syncContextBtn.disabled = !connected || !hasAnalysis || mealFlowInProgress;
         el.generateRecipeBtn.disabled = !hasAnalysis || !hasToken || mealFlowInProgress;
+        el.saveRecipeBtn.disabled = !canSaveRecipe || mealFlowInProgress;
         el.runMealFlowBtn.disabled = !hasToken || mealFlowInProgress;
         el.toggleAudioBtn.textContent = `Auto Play Audio: ${autoPlayModelAudio ? 'ON' : 'OFF'}`;
       }
@@ -723,6 +776,7 @@
         preEl.textContent = toPrettyText(rawText);
       }
       function setDishOptions(items) {
+        clearRecipeDraftState(true);
         el.dishSelect.innerHTML = '';
         if (!items.length) {
           const option = document.createElement('option');
@@ -740,6 +794,7 @@
         scheduleAutoMealContextSync();
       }
       function scheduleAutoMealContextSync() {
+        clearRecipeDraftState(true);
         if (!socket?.connected || !latestAnalysisToken || mealFlowInProgress) {
           return;
         }
@@ -885,6 +940,7 @@
                 reject(new Error('failed to capture frame'));
                 return;
               }
+              latestCapturedImageBlob = blob;
               resolve(blob);
             },
             'image/jpeg',
@@ -892,15 +948,69 @@
           );
         });
       }
+      function deriveStorageUrl(signedUrl) {
+        const parsed = new URL(signedUrl);
+        return `${parsed.origin}${parsed.pathname}`;
+      }
+      async function uploadImageBlobToStorage(imageBlob, label) {
+        if (!el.token.value.trim()) throw new Error('token missing');
+        const contentType = imageBlob.type || 'image/jpeg';
+        const base = el.apiBase.value.trim();
+
+        const uploadUrlRes = await fetch(`${base}/api/v1/nutrition-logs/upload-url`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${el.token.value.trim()}`,
+            },
+            body: JSON.stringify({ contentType }),
+          }),
+          uploadUrlRaw = await uploadUrlRes.text();
+
+        if (!uploadUrlRes.ok) {
+          throw new Error(`${label} upload-url failed (${uploadUrlRes.status}): ${uploadUrlRaw}`);
+        }
+
+        const uploadUrlPayload = JSON.parse(uploadUrlRaw),
+          uploadRes = await fetch(uploadUrlPayload.signedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: imageBlob,
+          });
+
+        if (!uploadRes.ok) {
+          const uploadRaw = await uploadRes.text().catch(() => '');
+          throw new Error(`${label} upload failed (${uploadRes.status}): ${uploadRaw}`);
+        }
+
+        return {
+          objectPath: uploadUrlPayload.objectPath,
+          publicUrl: deriveStorageUrl(uploadUrlPayload.signedUrl),
+        };
+      }
       async function suggestDishesFromWebcam() {
         if (!el.token.value.trim()) throw new Error('token missing');
         if (!webcamStream) await startWebcam();
         const imageBlob = await captureWebcamFrameAsBlob(),
           form = new FormData();
+        clearRecipeDraftState(true);
+        latestInputImageUrl = '';
         form.append('image', imageBlob, 'webcam-ingredients.jpg');
         form.append('locale', el.mealLocale.value.trim() || 'en');
         if (el.mealConstraints.value.trim())
           form.append('constraints', el.mealConstraints.value.trim());
+        try {
+          const uploadedImage = await uploadImageBlobToStorage(imageBlob, 'input image');
+          latestInputImageUrl = uploadedImage.publicUrl;
+          form.append('inputImageUrl', uploadedImage.publicUrl);
+          log('meal_input_image_upload_ok', uploadedImage.objectPath);
+        } catch (error) {
+          log('meal_input_image_upload_error', String(error));
+          appendChat(
+            'system',
+            'Input image was analyzed inline only. Save recipe will stay disabled until storage upload works.',
+          );
+        }
         const base = el.apiBase.value.trim(),
           res = await fetch(`${base}/api/v1/meal-assistant/suggest-dishes`, {
             method: 'POST',
@@ -972,7 +1082,80 @@
           raw = await res.text();
         setRaw(el.generateRaw, raw);
         if (!res.ok) throw new Error(`generate-recipe failed (${res.status})`);
+        const parsed = JSON.parse(raw);
+        latestRecipeToken = parsed.recipeToken || '';
         log('meal_generate_ok', selectedDishId);
+        appendChat(
+          'system',
+          `Recipe ready: ${parsed.recipe?.title || selectedDishId}. Save will use the current camera frame as the cooked image.`,
+        );
+        updateButtons();
+      }
+      async function saveRecipeFromCurrentFlow() {
+        if (!el.token.value.trim()) throw new Error('token missing');
+        if (!latestAnalysisToken) throw new Error('analysisToken missing. Run suggest-dishes first');
+        if (!latestRecipeToken) throw new Error('recipeToken missing. Run generate-recipe first');
+        if (!latestInputImageUrl) {
+          throw new Error(
+            'inputImageUrl missing. Re-run Capture + Suggest after storage upload is configured.',
+          );
+        }
+
+        let cookedImageBlob = null;
+        if (webcamStream) {
+          cookedImageBlob = await captureWebcamFrameAsBlob();
+          log('meal_cooked_capture_ok', 'captured current webcam frame for save');
+        } else if (latestCapturedImageBlob) {
+          cookedImageBlob = latestCapturedImageBlob;
+          log('meal_cooked_capture_fallback', 'using last captured preview for save');
+        }
+
+        if (!cookedImageBlob) {
+          throw new Error('no cooked image available. Start Cam or capture a frame first');
+        }
+
+        const cookedUpload = await uploadImageBlobToStorage(cookedImageBlob, 'cooked image'),
+          ratingValue = Number(el.mealRating.value || 5),
+          ateAtValue = toIsoDateTimeOrUndefined(el.mealAteAt.value),
+          payload = {
+            analysisToken: latestAnalysisToken,
+            recipeToken: latestRecipeToken,
+            cookedImageUrl: cookedUpload.publicUrl,
+            rating: Number.isFinite(ratingValue) ? Math.min(5, Math.max(1, Math.round(ratingValue))) : 5,
+            note: el.mealNote.value.trim() || undefined,
+            ateAt: ateAtValue,
+          },
+          base = el.apiBase.value.trim(),
+          res = await fetch(`${base}/api/v1/meal-assistant/save`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${el.token.value.trim()}`,
+            },
+            body: JSON.stringify(payload),
+          }),
+          raw = await res.text();
+
+        setRaw(el.saveRaw, raw);
+        if (!res.ok) throw new Error(`save failed (${res.status}): ${raw}`);
+
+        const parsed = JSON.parse(raw),
+          hadActiveSocket = Boolean(socket?.connected);
+
+        resetLocalContextState();
+        setRaw(el.saveRaw, raw);
+
+        if (hadActiveSocket) {
+          setStatus('reconnecting after save...', 'warn');
+          await reconnectSocketAfterReset();
+        }
+
+        appendChat(
+          'system',
+          `Recipe saved (${parsed.savedId}). Context reset for the next dish.`,
+        );
+        log('meal_save_ok', parsed.savedId);
+        setStatus('recipe saved', 'ok');
       }
       async function runMealWebcamFlow() {
         if (mealFlowInProgress) return;
@@ -1326,6 +1509,21 @@
           updateButtons();
         }
       });
+      el.saveRecipeBtn.addEventListener('click', async () => {
+        try {
+          mealFlowInProgress = true;
+          updateButtons();
+          setStatus('saving recipe...', 'warn');
+          await saveRecipeFromCurrentFlow();
+        } catch (error) {
+          log('meal_save_error', String(error));
+          setStatus('save recipe failed', 'bad');
+          appendChat('system', `Save failed: ${String(error)}`);
+        } finally {
+          mealFlowInProgress = false;
+          updateButtons();
+        }
+      });
       el.runMealFlowBtn.addEventListener('click', runMealWebcamFlow);
       el.dishSelect.addEventListener('change', scheduleAutoMealContextSync);
       el.mealPreferences.addEventListener('input', scheduleAutoMealContextSync);
@@ -1347,7 +1545,9 @@
       });
       setRaw(el.suggestRaw, '');
       setRaw(el.generateRaw, '');
+      setRaw(el.saveRaw, '');
       setDishOptions([]);
+      setDefaultMealMeta();
       setMode('talk');
       setStatus('idle', 'warn');
       appendChat('system', 'Ready. Tap Connect, then start talking or switch to Capture mode.');
