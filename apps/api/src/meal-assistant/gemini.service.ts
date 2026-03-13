@@ -9,8 +9,10 @@ import { GoogleGenAI, Modality, type LiveServerMessage, type Session } from '@go
 import {
   MealDishSuggestion,
   MealGeneratedRecipe,
+  MealTextAnalysis,
   mealDishSuggestionSchema,
   mealGeneratedRecipeSchema,
+  mealTextAnalysisSchema,
 } from '@nutrition/shared';
 import { z } from 'zod';
 import { AppConfig } from '../config/app.config';
@@ -21,6 +23,7 @@ interface SuggestDishesInput {
   readonly inputImageUrl?: string;
   readonly locale: string;
   readonly constraints?: string;
+  readonly sharedContext?: string;
 }
 
 interface GenerateRecipeInput {
@@ -29,11 +32,20 @@ interface GenerateRecipeInput {
   readonly suggestions: MealDishSuggestion[];
   readonly servings?: number;
   readonly preferences?: string;
+  readonly sharedContext?: string;
 }
 
 interface OpenLiveAudioSessionInput {
   readonly locale: string;
   readonly userId: string;
+  readonly sharedContext?: string;
+}
+
+interface AnalyzeFoodTextInput {
+  readonly text: string;
+  readonly locale: string;
+  readonly constraints?: string;
+  readonly sharedContext?: string;
 }
 
 interface LiveSessionCallbacks {
@@ -62,6 +74,10 @@ const recipeOutputSchema = z.object({
   recipe: mealGeneratedRecipeSchema,
 });
 
+const textAnalysisOutputSchema = z.object({
+  analysis: mealTextAnalysisSchema,
+});
+
 @Injectable()
 export class GeminiService {
   constructor(private readonly configService: ConfigService<AppConfig, true>) {}
@@ -84,7 +100,9 @@ export class GeminiService {
       `Return strict JSON only with this shape: {"suggestions":[{"id":"dish_1","name":"...","reason":"...","estimatedNutrition":{"calories":123,"protein":12,"carbs":20,"fats":5}}]}.\n` +
       `Use English output language. Return between 5 options.\n` +
       `Locale hint: ${input.locale}\n` +
-      `User constraints: ${input.constraints ?? 'none'}`;
+      `User constraints: ${input.constraints ?? 'none'}\n` +
+      `${input.sharedContext ? `${input.sharedContext}\n` : ''}` +
+      'Apply the shared context when generating suggestions.';
 
     const parsed = await this.callGeminiJson({
       modelName,
@@ -124,6 +142,7 @@ export class GeminiService {
       `All suggestions context: ${JSON.stringify(input.suggestions)}\n` +
       `Servings: ${input.servings ?? 2}\n` +
       `Preferences: ${input.preferences ?? 'none'}\n` +
+      `${input.sharedContext ? `${input.sharedContext}\n` : ''}` +
       `Return strict JSON only with shape: {"recipe":{"title":"...","ingredients":[{"name":"...","quantity":"..."}],"steps":["..."],"notes":["..."],"nutritionEstimate":{"calories":123,"protein":12,"carbs":20,"fats":5}}}`;
 
     try {
@@ -149,6 +168,44 @@ export class GeminiService {
       }
       throw error;
     }
+  }
+
+  async analyzeFoodText(
+    input: AnalyzeFoodTextInput,
+  ): Promise<{ analysis: MealTextAnalysis; modelName: string }> {
+    const modelName = this.configService.get('GEMINI_LIVE_MODEL', { infer: true });
+
+    if (!this.hasApiKey()) {
+      return {
+        analysis: this.buildFallbackTextAnalysis(input),
+        modelName,
+      };
+    }
+
+    const prompt =
+      'You are a nutrition assistant focused on food logging.\n' +
+      'Read the user meal text and return strict JSON only.\n' +
+      'Extract what is already known, what is still missing for accurate nutrition analysis, and one concise follow-up reply.\n' +
+      'Return shape: {"analysis":{"detected":{"foods":[{"name":"...","quantity":"..."}],"nutritionGoals":["..."],"dietaryConstraints":["..."],"mealTime":"..."},"missing":["..."],"assistantReply":"..."}}.\n' +
+      'If a field is unknown, keep it empty instead of guessing.\n' +
+      `Locale hint: ${input.locale}\n` +
+      `Explicit constraints: ${input.constraints ?? 'none'}\n` +
+      `${input.sharedContext ? `${input.sharedContext}\n` : ''}` +
+      `User text: ${input.text}`;
+
+    const parsed = await this.callGeminiJson({
+      modelName,
+      prompt,
+      outputSchema: textAnalysisOutputSchema,
+      fallbackFromRaw: rawText => ({
+        analysis: this.buildFallbackTextAnalysis(input, rawText),
+      }),
+    });
+
+    return {
+      analysis: this.normalizeTextAnalysis(parsed.analysis, input),
+      modelName,
+    };
   }
 
   async generateLiveTextReply(text: string, locale: string): Promise<string> {
@@ -360,7 +417,11 @@ export class GeminiService {
         responseModalities: [Modality.AUDIO],
         inputAudioTranscription: {},
         outputAudioTranscription: {},
-        systemInstruction: this.buildLiveSystemInstruction(input.locale, input.userId),
+        systemInstruction: this.buildLiveSystemInstruction(
+          input.locale,
+          input.userId,
+          input.sharedContext,
+        ),
       },
       callbacks: {
         onmessage: message => {
@@ -467,12 +528,13 @@ export class GeminiService {
     };
   }
 
-  private buildLiveSystemInstruction(locale: string, userId: string): string {
+  private buildLiveSystemInstruction(locale: string, userId: string, sharedContext?: string): string {
     return (
       'You are a realtime cooking voice assistant. ' +
       'Give concise and practical meal guidance in English unless the user clearly asks for another language.\n' +
       `Locale hint: ${locale}\n` +
-      `Session user id: ${userId}`
+      `Session user id: ${userId}\n` +
+      `${sharedContext ?? ''}`
     );
   }
 
@@ -968,6 +1030,294 @@ export class GeminiService {
     }
 
     return cleaned;
+  }
+
+  private normalizeTextAnalysis(
+    analysis: z.input<typeof mealTextAnalysisSchema>,
+    input: AnalyzeFoodTextInput,
+  ): MealTextAnalysis {
+    const fallback = this.buildFallbackTextAnalysis(input);
+    const detectedFoods = Array.isArray(analysis.detected?.foods) ? analysis.detected.foods : [];
+    const nutritionGoalsInput = Array.isArray(analysis.detected?.nutritionGoals)
+      ? analysis.detected.nutritionGoals
+      : [];
+    const dietaryConstraintsInput = Array.isArray(analysis.detected?.dietaryConstraints)
+      ? analysis.detected.dietaryConstraints
+      : [];
+    const missingInput = Array.isArray(analysis.missing) ? analysis.missing : [];
+
+    const normalizedFoods = this.normalizeDetectedFoods([
+      ...detectedFoods,
+      ...fallback.detected.foods,
+    ]);
+    const nutritionGoals = this.uniqueStringList(
+      [...nutritionGoalsInput, ...fallback.detected.nutritionGoals],
+      20,
+      200,
+    );
+    const dietaryConstraints = this.uniqueStringList(
+      [...dietaryConstraintsInput, ...fallback.detected.dietaryConstraints],
+      20,
+      200,
+    );
+    const mealTime = analysis.detected?.mealTime?.trim() || fallback.detected.mealTime;
+    const missing = this.uniqueStringList(
+      [...missingInput, ...fallback.missing],
+      20,
+      300,
+    );
+    const assistantReply = analysis.assistantReply.trim() || fallback.assistantReply;
+
+    return {
+      detected: {
+        foods: normalizedFoods,
+        nutritionGoals,
+        dietaryConstraints,
+        mealTime,
+      },
+      missing,
+      assistantReply,
+    };
+  }
+
+  private buildFallbackTextAnalysis(
+    input: AnalyzeFoodTextInput,
+    modelNarrative?: string,
+  ): MealTextAnalysis {
+    const foods = this.extractFoodItemsFromText(input.text);
+    const keywordSource = `${input.text}\n${input.constraints ?? ''}\n${modelNarrative ?? ''}`;
+    const nutritionGoals = this.collectKeywordMatches(keywordSource, [
+      'high protein',
+      'low carb',
+      'low fat',
+      'high fiber',
+      'weight loss',
+      'muscle gain',
+      'calorie deficit',
+      'maintenance',
+    ]);
+    const dietaryConstraints = this.collectKeywordMatches(keywordSource, [
+      'vegetarian',
+      'vegan',
+      'keto',
+      'halal',
+      'gluten-free',
+      'dairy-free',
+      'nut-free',
+      'no sugar',
+      'low sodium',
+      'no pork',
+    ]);
+
+    if (input.constraints) {
+      dietaryConstraints.unshift(input.constraints.trim());
+    }
+
+    const normalizedFoods = this.normalizeDetectedFoods(foods);
+    const mealTime = this.detectMealTime(input.text);
+    const missing = this.collectMissingContext({
+      sourceText: input.text,
+      foods: normalizedFoods,
+      mealTime,
+      nutritionGoals,
+      dietaryConstraints,
+    });
+
+    const detectedItemsText =
+      normalizedFoods.length > 0
+        ? normalizedFoods
+            .slice(0, 3)
+            .map(item => item.name)
+            .join(', ')
+        : 'your meal items';
+    const missingPrompt =
+      missing.length > 0
+        ? ` Please share: ${missing.slice(0, 2).join('; ')}.`
+        : ' I have enough context to estimate nutrition.';
+
+    return {
+      detected: {
+        foods: normalizedFoods,
+        nutritionGoals: this.uniqueStringList(nutritionGoals, 20, 200),
+        dietaryConstraints: this.uniqueStringList(dietaryConstraints, 20, 200),
+        mealTime,
+      },
+      missing,
+      assistantReply: `I detected ${detectedItemsText}.${missingPrompt}`.trim(),
+    };
+  }
+
+  private normalizeDetectedFoods(
+    foods: Array<{ name: string; quantity?: string }>,
+  ): Array<{ name: string; quantity?: string }> {
+    const result: Array<{ name: string; quantity?: string }> = [];
+    const seen = new Set<string>();
+
+    for (const food of foods) {
+      const name = this.normalizeFoodName(food.name);
+      if (!name) {
+        continue;
+      }
+
+      const key = name.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+
+      const quantity = food.quantity?.trim();
+      result.push({
+        name,
+        quantity: quantity ? quantity.slice(0, 120) : undefined,
+      });
+
+      if (result.length === 30) {
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  private extractFoodItemsFromText(text: string): Array<{ name: string; quantity?: string }> {
+    const result: Array<{ name: string; quantity?: string }> = [];
+    const quantityRegex =
+      /(\b\d+(?:\.\d+)?\s*(?:g|gram|grams|kg|ml|l|cup|cups|tbsp|tsp|oz|slice|slices|piece|pieces|egg|eggs|bowl|bowls))\s+([\p{L}][\p{L}\p{N}\s-]{1,50})/giu;
+
+    let match = quantityRegex.exec(text);
+    while (match) {
+      result.push({
+        quantity: match[1].trim(),
+        name: match[2].trim(),
+      });
+      match = quantityRegex.exec(text);
+    }
+
+    const segments = text.split(/,|;|\band\b/gi).map(segment => segment.trim());
+    for (const segment of segments) {
+      if (!segment) {
+        continue;
+      }
+
+      const maybeName = segment.replace(/\b(i ate|i had|today|meal|breakfast|lunch|dinner)\b/gi, ' ');
+      const cleaned = this.normalizeFoodName(maybeName);
+      if (!cleaned) {
+        continue;
+      }
+
+      result.push({ name: cleaned });
+      if (result.length >= 20) {
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  private normalizeFoodName(value: string): string | null {
+    const trimmed = value
+      .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    if (trimmed.length < 2 || trimmed.length > 160) {
+      return null;
+    }
+
+    const words = trimmed.split(' ').filter(Boolean);
+    if (words.length > 8) {
+      return null;
+    }
+
+    const blocked = ['today', 'meal', 'breakfast', 'lunch', 'dinner', 'snack'];
+    if (words.length === 1 && blocked.includes(words[0].toLowerCase())) {
+      return null;
+    }
+
+    return trimmed;
+  }
+
+  private detectMealTime(text: string): string | undefined {
+    if (/\b(breakfast|morning|brunch|sang)\b/i.test(text)) {
+      return 'breakfast';
+    }
+    if (/\b(lunch|afternoon|trua)\b/i.test(text)) {
+      return 'lunch';
+    }
+    if (/\b(dinner|evening|toi)\b/i.test(text)) {
+      return 'dinner';
+    }
+    if (/\b(snack)\b/i.test(text)) {
+      return 'snack';
+    }
+    return undefined;
+  }
+
+  private collectMissingContext(input: {
+    sourceText: string;
+    foods: Array<{ name: string; quantity?: string }>;
+    mealTime?: string;
+    nutritionGoals: string[];
+    dietaryConstraints: string[];
+  }): string[] {
+    const missing: string[] = [];
+
+    if (input.foods.length === 0) {
+      missing.push('Main food items');
+    }
+
+    if (!input.foods.some(food => Boolean(food.quantity))) {
+      missing.push('Exact quantity/portion for each food item');
+    }
+
+    if (!/\b(boiled|fried|grilled|baked|steamed|raw|sauteed|roasted)\b/i.test(input.sourceText)) {
+      missing.push('Cooking method for each main item');
+    }
+
+    if (!input.mealTime) {
+      missing.push('Meal time (breakfast/lunch/dinner/snack)');
+    }
+
+    if (input.nutritionGoals.length === 0 && input.dietaryConstraints.length === 0) {
+      missing.push('Nutrition goal or dietary constraints');
+    }
+
+    return this.uniqueStringList(missing, 20, 300);
+  }
+
+  private collectKeywordMatches(source: string, keywords: string[]): string[] {
+    const normalizedSource = source.toLowerCase();
+    return keywords.filter(keyword => normalizedSource.includes(keyword.toLowerCase()));
+  }
+
+  private uniqueStringList(values: string[], limit: number, maxLength: number): string[] {
+    const result: string[] = [];
+    const seen = new Set<string>();
+
+    for (const value of values) {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      const normalized = trimmed.slice(0, maxLength);
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      result.push(normalized);
+
+      if (result.length === limit) {
+        break;
+      }
+    }
+
+    return result;
   }
 
   private buildFallbackSuggestions(constraints?: string): MealDishSuggestion[] {

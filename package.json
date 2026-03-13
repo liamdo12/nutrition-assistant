@@ -15,6 +15,7 @@
     "db:migrate:dev": "node scripts/run-with-encrypted-env.mjs \"yarn workspace @nutrition/api prisma:migrate:dev\"",
     "db:migrate": "node scripts/run-with-encrypted-env.mjs \"yarn workspace @nutrition/api prisma:migrate:deploy\"",
     "docker:api:dev": "node scripts/run-with-encrypted-env.mjs \"yarn workspace @nutrition/api prisma:generate && yarn workspace @nutrition/api prisma:db:push && yarn workspace @nutrition/api dev\"",
+    "test:model:carbonara": "node scripts/test-carbonara-model.mjs",
     "lint": "turbo lint",
     "test": "turbo test",
     "typecheck": "turbo typecheck",

@@ -6,6 +6,9 @@ import {
 } from '@nestjs/common';
 import {
   MealDishSuggestion,
+  mealAnalyzeTextRequestSchema,
+  mealAnalyzeTextResponseSchema,
+  mealContextResetResponseSchema,
   mealGenerateRecipeRequestSchema,
   mealGenerateRecipeResponseSchema,
   mealHistoryDetailResponseSchema,
@@ -24,6 +27,7 @@ import { DomainEventsService } from '../events/domain-events.service';
 import { FirebaseStorageUrlService } from './firebase-storage-url.service';
 import { GeminiService } from './gemini.service';
 import { MealDraftTokenService } from './meal-draft-token.service';
+import { SharedMealContextService } from './shared-meal-context.service';
 import { z } from 'zod';
 
 @Injectable()
@@ -34,6 +38,7 @@ export class MealAssistantService {
     private readonly firebaseStorageUrlService: FirebaseStorageUrlService,
     private readonly geminiService: GeminiService,
     private readonly draftTokenService: MealDraftTokenService,
+    private readonly sharedMealContextService: SharedMealContextService,
   ) {}
 
   async suggestDishes(user: AuthenticatedUser, rawInput: unknown) {
@@ -66,6 +71,13 @@ export class MealAssistantService {
         inputImageUrl,
         locale: input.locale,
         constraints: input.constraints,
+        sharedContext: this.sharedMealContextService.buildPromptContext(user.id),
+      });
+
+      this.sharedMealContextService.mergeImageAnalysis(user.id, {
+        locale: input.locale,
+        constraints: input.constraints,
+        suggestions: suggestResult.suggestions,
       });
 
       const signed = this.draftTokenService.signAnalysisToken({
@@ -107,6 +119,61 @@ export class MealAssistantService {
     }
   }
 
+  async analyzeText(user: AuthenticatedUser, rawInput: unknown) {
+    const input = parseWithSchema(mealAnalyzeTextRequestSchema, rawInput);
+
+    this.domainEvents.publish({
+      type: 'meal.text-analysis.requested',
+      userId: user.id,
+      payload: {
+        locale: input.locale,
+      },
+    });
+
+    try {
+      const result = await this.geminiService.analyzeFoodText({
+        text: input.text,
+        locale: input.locale,
+        constraints: input.constraints,
+        sharedContext: this.sharedMealContextService.buildPromptContext(user.id),
+      });
+
+      this.sharedMealContextService.mergeTextTurn(user.id, 'user', input.text);
+      this.sharedMealContextService.mergeTextAnalysis(user.id, {
+        locale: input.locale,
+        constraints: input.constraints,
+        analysis: result.analysis,
+      });
+      this.sharedMealContextService.mergeTextTurn(user.id, 'model', result.analysis.assistantReply);
+
+      this.domainEvents.publish({
+        type: 'meal.text-analysis.completed',
+        userId: user.id,
+        payload: {
+          detectedFoods: result.analysis.detected.foods.length,
+          missingCount: result.analysis.missing.length,
+        },
+      });
+
+      return parseWithSchema(mealAnalyzeTextResponseSchema, {
+        analysis: result.analysis,
+        modelInfo: {
+          provider: 'gemini',
+          model: result.modelName,
+        },
+      });
+    } catch (error) {
+      this.domainEvents.publish({
+        type: 'meal.text-analysis.failed',
+        userId: user.id,
+        payload: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+      throw error;
+    }
+  }
+
   async generateRecipe(user: AuthenticatedUser, rawInput: unknown) {
     const input = parseWithSchema(mealGenerateRecipeRequestSchema, rawInput);
     const analysisPayload = this.draftTokenService.verifyAnalysisToken(input.analysisToken, user.id);
@@ -131,6 +198,13 @@ export class MealAssistantService {
         selectedDish,
         suggestions: analysisPayload.data.suggestions,
         servings: input.servings,
+        preferences: input.preferences,
+        sharedContext: this.sharedMealContextService.buildPromptContext(user.id),
+      });
+
+      this.sharedMealContextService.mergeMealSelection(user.id, {
+        selectedDishId: selectedDish.id,
+        selectedDishName: selectedDish.name,
         preferences: input.preferences,
       });
 
@@ -275,9 +349,19 @@ export class MealAssistantService {
       },
     });
 
+    this.resetSharedContext(user.id, 'meal_saved');
+
     return parseWithSchema(mealSaveResponseSchema, {
       savedId: created.id,
       createdAt: created.createdAt.toISOString(),
+    });
+  }
+
+  resetContext(user: AuthenticatedUser) {
+    this.resetSharedContext(user.id, 'manual_reset');
+    return parseWithSchema(mealContextResetResponseSchema, {
+      reset: true,
+      resetAt: new Date().toISOString(),
     });
   }
 
@@ -382,6 +466,15 @@ export class MealAssistantService {
       throw new UnauthorizedException('selectedDishId is not part of the signed analysis token');
     }
     return selectedDish;
+  }
+
+  private resetSharedContext(userId: string, reason: string): void {
+    this.sharedMealContextService.clear(userId);
+    this.domainEvents.publish({
+      type: 'meal.context.reset',
+      userId,
+      payload: { reason },
+    });
   }
 }
 

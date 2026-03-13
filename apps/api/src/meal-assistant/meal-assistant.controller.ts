@@ -47,6 +47,28 @@ export class MealAssistantController {
     return this.mealAssistantService.suggestDishes(user, payload);
   }
 
+  @Post('analyze-text')
+  @ApiOperation({
+    summary: 'Analyze meal text and return detected food context plus missing nutrition details',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['text'],
+      properties: {
+        text: {
+          type: 'string',
+          example: 'I had 2 eggs and 1 cup of milk for breakfast. Need high protein.',
+        },
+        locale: { type: 'string', example: 'en' },
+        constraints: { type: 'string', example: 'low sodium, no peanuts' },
+      },
+    },
+  })
+  analyzeText(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
+    return this.mealAssistantService.analyzeText(user, body);
+  }
+
   @Post('generate-recipe')
   @ApiOperation({ summary: 'Generate recipe from selected dish suggestion' })
   @ApiBody({
@@ -83,6 +105,12 @@ export class MealAssistantController {
   })
   save(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     return this.mealAssistantService.save(user, body);
+  }
+
+  @Post('context/reset')
+  @ApiOperation({ summary: 'Reset shared meal context for text, voice, and image flows' })
+  resetContext(@CurrentUser() user: AuthenticatedUser) {
+    return this.mealAssistantService.resetContext(user);
   }
 
   @Get('history')

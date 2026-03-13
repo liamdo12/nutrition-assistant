@@ -1,111 +1,1357 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Meal Assistant Live App</title>
-<style>
-:root{--bg:#f3f6fb;--panel:#fff;--ink:#0f172a;--muted:#64748b;--line:#dbe3ef;--accent:#0f766e;--accent2:#115e59;--danger:#b91c1c;--warn:#92400e;--ok:#166534}
-*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:var(--ink);background:radial-gradient(900px 380px at 5% -10%,rgba(15,118,110,.14),transparent),radial-gradient(800px 340px at 105% -20%,rgba(59,130,246,.14),transparent),var(--bg)}
-.app{max-width:1320px;margin:0 auto;padding:18px 14px 28px}.topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;background:rgba(255,255,255,.85);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
-.brand h1{margin:0;font-size:19px}.brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
-.status-pill{padding:7px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;background:#fff;color:var(--warn)}.status-pill.ok{color:var(--ok);border-color:rgba(22,101,52,.25);background:rgba(22,101,52,.06)}.status-pill.warn{color:var(--warn);border-color:rgba(146,64,14,.25);background:rgba(146,64,14,.06)}.status-pill.bad{color:var(--danger);border-color:rgba(185,28,28,.25);background:rgba(185,28,28,.07)}
-.main{display:grid;grid-template-columns:430px minmax(0,1fr);gap:14px}.stack{display:flex;flex-direction:column;gap:14px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}.card h2{margin:0 0 6px;font-size:15px}.card p{margin:0;font-size:12px;color:var(--muted)}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.field{display:flex;flex-direction:column;gap:4px}.full{grid-column:1/-1}
-label{font-size:12px;color:var(--muted)}input,select{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:14px;outline:none;background:#fff}input:focus,select:focus{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.2)}
-.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}button{border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600;font-size:13px;color:#fff;background:var(--accent)}button:hover{background:var(--accent2)}button.secondary{background:#475569}button.danger{background:var(--danger)}button:disabled{opacity:.55;cursor:not-allowed}
-.media{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}video,img.capture{width:100%;min-height:220px;max-height:330px;border:1px solid var(--line);border-radius:10px;background:#0f172a;object-fit:cover}
-.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.raw,.logs{margin:0;width:100%;border:1px solid var(--line);border-radius:10px;background:#0b1020;color:#d1f4ff;padding:11px;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow:auto}.raw{min-height:190px;max-height:310px}.logs{min-height:270px;max-height:360px}.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.meta strong{font-size:12px;color:var(--muted)}.audio{width:100%;margin-top:10px}
-@media(max-width:1080px){.main{grid-template-columns:1fr}}@media(max-width:760px){.grid,.media,.split{grid-template-columns:1fr}.topbar{flex-direction:column;align-items:flex-start}}
-</style>
-</head>
-<body>
-<div class="app">
-<header class="topbar"><div class="brand"><h1>Meal Assistant Live App</h1><p>Auth, live voice, webcam meal flow, context sync in one page.</p></div><div id="status" class="status-pill warn">idle</div></header>
-<section class="main">
-<div class="stack">
-<div class="card"><h2>Account</h2><p>Register or login to get JWT token.</p>
-<div class="grid">
-<div class="field full"><label for="apiBase">API Base URL</label><input id="apiBase" value="http://127.0.0.1:3000" /></div>
-<div class="field"><label for="name">Name</label><input id="name" placeholder="Your name" /></div>
-<div class="field"><label for="email">Email</label><input id="email" placeholder="you@example.com" /></div>
-<div class="field full"><label for="password">Password</label><input id="password" type="password" placeholder="********" /></div>
-<div class="field full"><label for="token">JWT Token</label><input id="token" placeholder="Auto-filled after login/register" /></div>
-</div>
-<div class="row"><button id="registerBtn">Register</button><button id="loginBtn">Login</button></div></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meal Assistant Live App</title>
+    <style>
+      :root {
+        --bg: #eef3f7;
+        --phone: #f9fcff;
+        --panel: #ffffff;
+        --ink: #112137;
+        --muted: #5a6e88;
+        --line: #d0dce8;
+        --accent: #0f766e;
+        --accent-2: #0a5f58;
+        --model: #e4f0ff;
+        --user: #d9fbef;
+        --system: #fff2cc;
+        --danger: #b91c1c;
+        --warn: #9a5a0a;
+        --ok: #166534;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: 'Trebuchet MS', 'Avenir Next', sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(900px 380px at 5% -10%, rgba(15, 118, 110, 0.2), transparent),
+          radial-gradient(860px 340px at 100% -8%, rgba(14, 165, 233, 0.2), transparent),
+          linear-gradient(170deg, #f2f7fb 0%, #e7eff6 100%);
+      }
+      .app {
+        max-width: 460px;
+        margin: 0 auto;
+        padding: 14px 12px 22px;
+      }
+      .phone {
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        padding: 12px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.95));
+        box-shadow: 0 20px 40px rgba(16, 33, 55, 0.12);
+      }
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 17px;
+      }
+      .brand p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .status-pill {
+        padding: 5px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        background: #fff;
+        color: var(--warn);
+      }
+      .status-pill.ok {
+        color: var(--ok);
+        border-color: rgba(22, 101, 52, 0.25);
+        background: rgba(22, 101, 52, 0.08);
+      }
+      .status-pill.warn {
+        color: var(--warn);
+        border-color: rgba(154, 90, 10, 0.25);
+        background: rgba(154, 90, 10, 0.08);
+      }
+      .status-pill.bad {
+        color: var(--danger);
+        border-color: rgba(185, 28, 28, 0.25);
+        background: rgba(185, 28, 28, 0.09);
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .top-actions {
+        margin-top: 10px;
+      }
+      .mode-switch {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-top: 8px;
+      }
+      .mode-switch button.active {
+        background: #144f4a;
+        box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.2);
+      }
+      .mode-panel.hidden {
+        display: none;
+      }
+      .chat-feed {
+        height: 360px;
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 12px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(13, 148, 136, 0.08), transparent 36%),
+          radial-gradient(circle at 100% 100%, rgba(14, 165, 233, 0.08), transparent 36%), #fff;
+      }
+      .chat-empty {
+        font-size: 12px;
+        color: var(--muted);
+        text-align: center;
+        padding: 20px 10px;
+      }
+      .bubble-row {
+        display: flex;
+        margin-bottom: 8px;
+      }
+      .bubble-row.user {
+        justify-content: flex-end;
+      }
+      .bubble-row.model,
+      .bubble-row.system {
+        justify-content: flex-start;
+      }
+      .bubble {
+        max-width: 84%;
+        border-radius: 14px;
+        padding: 9px 11px;
+        font-size: 13px;
+        line-height: 1.4;
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+      }
+      .bubble.user {
+        background: var(--user);
+      }
+      .bubble.model {
+        background: var(--model);
+      }
+      .bubble.system {
+        background: var(--system);
+      }
+      .composer {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 8px;
+      }
+      details.panel {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 9px;
+        background: var(--panel);
+        margin-top: 10px;
+      }
+      details.panel > summary {
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        color: #173052;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .full {
+        grid-column: 1/-1;
+      }
+      label {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      input,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 10px;
+        font-size: 13px;
+        outline: none;
+        background: #fff;
+      }
+      input:focus,
+      select:focus {
+        border-color: #14b8a6;
+        box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 8px 10px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 12px;
+        color: #fff;
+        background: var(--accent);
+      }
+      button:hover {
+        background: var(--accent-2);
+      }
+      button.secondary {
+        background: #46607f;
+      }
+      button.danger {
+        background: var(--danger);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .media {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      video,
+      img.capture {
+        width: 100%;
+        min-height: 120px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #0f172a;
+        object-fit: cover;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .raw,
+      .logs {
+        margin: 0;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #091426;
+        color: #d8f3ff;
+        padding: 10px;
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 11px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        overflow: auto;
+      }
+      .raw {
+        min-height: 100px;
+        max-height: 160px;
+      }
+      .logs {
+        min-height: 120px;
+        max-height: 170px;
+      }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .audio {
+        width: 100%;
+        margin-top: 8px;
+      }
+      @media (max-width: 420px) {
+        .app {
+          padding: 10px 8px 16px;
+        }
+        .phone {
+          border-radius: 18px;
+          padding: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <main class="phone">
+        <header class="topbar">
+          <div class="brand">
+            <h1>Meal AI Chat</h1>
+            <p>Mobile-style conversation screen</p>
+          </div>
+          <div id="status" class="status-pill warn">idle</div>
+        </header>
 
-<div class="card"><h2>Live Voice</h2><p>Connect socket and test mic or text.</p>
-<div class="grid"><div class="field full"><label for="textInput">Text Input</label><input id="textInput" placeholder="help me choose dinner from my ingredients" /></div></div>
-<div class="row"><button id="connectBtn">Connect Socket</button><button id="disconnectBtn" class="secondary" disabled>Disconnect</button><button id="runFlowBtn" class="secondary">Run Full Flow</button></div>
-<div class="row"><button id="sendTextBtn" class="secondary" disabled>Send Text</button><button id="startBtn" disabled>Start Mic</button><button id="stopBtn" class="danger" disabled>Stop + End Turn</button></div>
-<div class="row"><button id="micPlaybackBtn" class="secondary">Mic Playback Test (3s)</button><button id="toggleAudioBtn" class="secondary">Auto Play Audio: ON</button></div>
-</div>
+        <div class="row top-actions">
+          <button type="button" id="connectBtn">Connect</button>
+          <button type="button" id="disconnectBtn" class="secondary" disabled>Disconnect</button>
+          <button type="button" id="runFlowBtn" class="secondary">Auto Login + Connect</button>
+          <button type="button" id="resetContextBtn" class="danger">Reset Context</button>
+        </div>
 
-<div class="card"><h2>Meal Camera Flow</h2><p>Capture image, suggest dishes, sync context, then generate recipe.</p>
-<div class="grid">
-<div class="field"><label for="mealLocale">Locale</label><input id="mealLocale" value="en" /></div>
-<div class="field"><label for="mealServings">Servings</label><input id="mealServings" type="number" min="1" max="20" value="2" /></div>
-<div class="field full"><label for="mealConstraints">Constraints</label><input id="mealConstraints" placeholder="high protein, low sodium" /></div>
-<div class="field full"><label for="mealPreferences">Preferences</label><input id="mealPreferences" placeholder="less oil" /></div>
-<div class="field full"><label for="dishSelect">Selected Dish</label><select id="dishSelect"><option value="">(No suggestion yet)</option></select></div>
-</div>
-<div class="row"><button id="startCamBtn">Start Camera</button><button id="stopCamBtn" class="secondary" disabled>Stop Camera</button><button id="captureSuggestBtn" class="secondary">Capture + Suggest Dishes</button></div>
-<div class="row"><button id="syncContextBtn" class="secondary">Sync Context To Live</button><button id="generateRecipeBtn" class="secondary">Generate Recipe</button><button id="runMealFlowBtn" class="secondary">Run Meal Full Flow</button></div>
-</div>
-</div>
+        <section class="mode-switch">
+          <button type="button" id="modeTalkBtn" class="active">Talk Mode</button>
+          <button type="button" id="modeCaptureBtn" class="secondary">Capture Mode</button>
+        </section>
 
-<div class="stack">
-<div class="card"><h2>Camera Preview</h2><p>Left: live webcam. Right: captured frame sent to API.</p><div class="media"><video id="webcamPreview" autoplay playsinline muted></video><img id="capturedImage" class="capture" alt="Captured image preview" /></div><canvas id="webcamCanvas" style="display:none"></canvas></div>
-<div class="card"><h2>Raw API Responses</h2><div class="split"><div><div class="meta"><strong>suggest-dishes</strong></div><pre id="suggestRaw" class="raw"></pre></div><div><div class="meta"><strong>generate-recipe</strong></div><pre id="generateRaw" class="raw"></pre></div></div></div>
-<div class="card"><div class="meta"><h2 style="margin:0">Live Logs</h2><button id="clearBtn" class="secondary" type="button">Clear Logs</button></div><div id="logs" class="logs"></div><audio id="micPlayback" class="audio" controls></audio></div>
-</div>
-</section>
-</div>
-<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-<script>
-const el={apiBase:document.getElementById("apiBase"),name:document.getElementById("name"),email:document.getElementById("email"),password:document.getElementById("password"),token:document.getElementById("token"),textInput:document.getElementById("textInput"),registerBtn:document.getElementById("registerBtn"),loginBtn:document.getElementById("loginBtn"),connectBtn:document.getElementById("connectBtn"),disconnectBtn:document.getElementById("disconnectBtn"),runFlowBtn:document.getElementById("runFlowBtn"),sendTextBtn:document.getElementById("sendTextBtn"),startBtn:document.getElementById("startBtn"),stopBtn:document.getElementById("stopBtn"),micPlaybackBtn:document.getElementById("micPlaybackBtn"),toggleAudioBtn:document.getElementById("toggleAudioBtn"),clearBtn:document.getElementById("clearBtn"),micPlayback:document.getElementById("micPlayback"),mealLocale:document.getElementById("mealLocale"),mealConstraints:document.getElementById("mealConstraints"),mealServings:document.getElementById("mealServings"),mealPreferences:document.getElementById("mealPreferences"),dishSelect:document.getElementById("dishSelect"),startCamBtn:document.getElementById("startCamBtn"),stopCamBtn:document.getElementById("stopCamBtn"),captureSuggestBtn:document.getElementById("captureSuggestBtn"),syncContextBtn:document.getElementById("syncContextBtn"),generateRecipeBtn:document.getElementById("generateRecipeBtn"),runMealFlowBtn:document.getElementById("runMealFlowBtn"),webcamPreview:document.getElementById("webcamPreview"),capturedImage:document.getElementById("capturedImage"),webcamCanvas:document.getElementById("webcamCanvas"),suggestRaw:document.getElementById("suggestRaw"),generateRaw:document.getElementById("generateRaw"),status:document.getElementById("status"),logs:document.getElementById("logs")};
-let socket=null,stream=null,audioContext=null,sourceNode=null,processorNode=null,captureActive=false,micTestInProgress=false,autoPlayModelAudio=true,playbackAudioContext=null,playbackCursorSec=0,webcamStream=null,mealFlowInProgress=false,latestAnalysisToken="",latestSuggestionItems=[];const TARGET_SAMPLE_RATE=16000;
-function setStatus(text,kind){el.status.textContent=text;el.status.className=`status-pill ${kind||"warn"}`}
-function log(event,payload){const ts=new Date().toISOString();const line=`[${ts}] ${event}${payload!==undefined?`: ${payload}`:""}`;el.logs.textContent+=`${line}\n`;el.logs.scrollTop=el.logs.scrollHeight}
-function updateButtons(){const connected=Boolean(socket&&socket.connected),recording=captureActive,camReady=Boolean(webcamStream),hasToken=Boolean(el.token.value.trim()),hasAnalysis=Boolean(latestAnalysisToken);el.connectBtn.disabled=connected;el.disconnectBtn.disabled=!connected;el.sendTextBtn.disabled=!connected;el.startBtn.disabled=!connected||recording;el.stopBtn.disabled=!connected||!recording;el.micPlaybackBtn.disabled=recording||micTestInProgress;el.startCamBtn.disabled=camReady||mealFlowInProgress;el.stopCamBtn.disabled=!camReady||mealFlowInProgress;el.captureSuggestBtn.disabled=!camReady||!hasToken||mealFlowInProgress;el.syncContextBtn.disabled=!connected||!hasAnalysis||mealFlowInProgress;el.generateRecipeBtn.disabled=!hasAnalysis||!hasToken||mealFlowInProgress;el.runMealFlowBtn.disabled=!hasToken||mealFlowInProgress;el.toggleAudioBtn.textContent=`Auto Play Audio: ${autoPlayModelAudio?"ON":"OFF"}`}
-function bufferToBase64(buffer){const bytes=new Uint8Array(buffer);let binary="";const step=0x8000;for(let i=0;i<bytes.length;i+=step){binary+=String.fromCharCode(...bytes.subarray(i,i+step))}return btoa(binary)}
-function base64ToBytes(base64){const binary=atob(base64),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i+=1)bytes[i]=binary.charCodeAt(i);return bytes}
-function parseSampleRateFromMime(mimeType){if(!mimeType)return 24000;const m=mimeType.match(/rate=(\d+)/i);return m?Number(m[1])||24000:24000}
-function playModelPcmChunk(chunkBase64,mimeType){if(!autoPlayModelAudio||!chunkBase64||typeof chunkBase64!=="string"||!mimeType?.toLowerCase().startsWith("audio/pcm"))return;const sampleRate=parseSampleRateFromMime(mimeType),pcmBytes=base64ToBytes(chunkBase64);if(pcmBytes.length<2)return;if(!playbackAudioContext){playbackAudioContext=new(window.AudioContext||window.webkitAudioContext)();playbackCursorSec=playbackAudioContext.currentTime+.03}const samplesCount=Math.floor(pcmBytes.length/2),audioBuffer=playbackAudioContext.createBuffer(1,samplesCount,sampleRate),channelData=audioBuffer.getChannelData(0),view=new DataView(pcmBytes.buffer,pcmBytes.byteOffset,pcmBytes.byteLength);for(let i=0;i<samplesCount;i+=1){channelData[i]=view.getInt16(i*2,true)/32768}const source=playbackAudioContext.createBufferSource();source.buffer=audioBuffer;source.connect(playbackAudioContext.destination);const startAt=Math.max(playbackAudioContext.currentTime+.01,playbackCursorSec);source.start(startAt);playbackCursorSec=startAt+audioBuffer.duration}
-function downsampleBuffer(input,inputRate,outputRate){if(outputRate>=inputRate)return input;const ratio=inputRate/outputRate,outputLength=Math.round(input.length/ratio),output=new Float32Array(outputLength);let outputOffset=0,inputOffset=0;while(outputOffset<outputLength){const nextInputOffset=Math.round((outputOffset+1)*ratio);let sum=0,count=0;for(let i=inputOffset;i<nextInputOffset&&i<input.length;i+=1){sum+=input[i];count+=1}output[outputOffset]=count>0?sum/count:0;outputOffset+=1;inputOffset=nextInputOffset}return output}
-function floatTo16BitPcm(floatSamples){const buffer=new ArrayBuffer(floatSamples.length*2),view=new DataView(buffer);for(let i=0;i<floatSamples.length;i+=1){const sample=Math.max(-1,Math.min(1,floatSamples[i]));view.setInt16(i*2,sample<0?sample*0x8000:sample*0x7fff,true)}return buffer}
-function emitPcmChunk(floatSamples,inputSampleRate){if(!socket?.connected||!captureActive)return;const downsampled=downsampleBuffer(floatSamples,inputSampleRate,TARGET_SAMPLE_RATE);if(!downsampled.length)return;socket.emit("audio_chunk",{chunkBase64:bufferToBase64(floatTo16BitPcm(downsampled)),mimeType:`audio/pcm;rate=${TARGET_SAMPLE_RATE}`})}
-function toPrettyText(rawText){if(!rawText)return"";try{return JSON.stringify(JSON.parse(rawText),null,2)}catch(_){return rawText}}
-function setRaw(preEl,rawText){preEl.textContent=toPrettyText(rawText)}
-function setDishOptions(items){el.dishSelect.innerHTML="";if(!items.length){const option=document.createElement("option");option.value="";option.textContent="(No suggestion yet)";el.dishSelect.appendChild(option);return}for(const item of items){const option=document.createElement("option");option.value=item.id;option.textContent=`${item.name} - ${item.reason||""}`.trim();el.dishSelect.appendChild(option)}}
-async function login(){const base=el.apiBase.value.trim(),email=el.email.value.trim(),password=el.password.value;if(!base||!email||!password){setStatus("missing login inputs","bad");return}try{setStatus("logging in...","warn");const res=await fetch(`${base}/api/v1/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})}),body=await res.json().catch(()=>({}));if(!res.ok||!body.token){log("login_error",JSON.stringify(body));setStatus(`login failed (${res.status})`,"bad");return}el.token.value=body.token;log("login_ok",body.user?.email||email);setStatus("login ok","ok");updateButtons()}catch(error){log("login_exception",String(error));setStatus("login exception","bad")}}
-async function register(){const base=el.apiBase.value.trim(),name=el.name.value.trim(),email=el.email.value.trim(),password=el.password.value;if(!base||!name||!email||!password){setStatus("missing register inputs","bad");return}try{setStatus("registering...","warn");const res=await fetch(`${base}/api/v1/auth/register`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,email,password})}),body=await res.json().catch(()=>({}));if(!res.ok||!body.token){log("register_error",JSON.stringify(body));setStatus(`register failed (${res.status})`,"bad");return}el.token.value=body.token;log("register_ok",body.user?.email||email);setStatus("register ok","ok");updateButtons()}catch(error){log("register_exception",String(error));setStatus("register exception","bad")}}
-function sendTextInput(){const text=el.textInput.value.trim();if(!socket?.connected){setStatus("socket not connected","bad");return}if(!text){setStatus("text input is empty","bad");return}socket.emit("text_input",{text});log("emit_text_input",text);setStatus("text sent","ok")}
-async function runFullFlow(){try{setStatus("running full flow...","warn");if(!el.token.value.trim()&&el.email.value.trim()&&el.password.value)await login();if(!el.token.value.trim())throw new Error("token missing after login");await connectSocket();const text=el.textInput.value.trim();if(text)sendTextInput();else log("full_flow_note","socket connected. Enter text or use Start Mic.");setStatus("full flow done: connected","ok")}catch(error){log("full_flow_error",String(error));setStatus("full flow failed","bad")}}
-async function startWebcam(){if(webcamStream)return;webcamStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:"environment"},audio:false});el.webcamPreview.srcObject=webcamStream;await el.webcamPreview.play().catch(()=>{});log("webcam_start","camera started")}
-function stopWebcam(){if(!webcamStream)return;webcamStream.getTracks().forEach(t=>t.stop());webcamStream=null;el.webcamPreview.srcObject=null;log("webcam_stop","camera stopped")}
-function captureWebcamFrameAsBlob(){return new Promise((resolve,reject)=>{if(!webcamStream||!el.webcamPreview.videoWidth||!el.webcamPreview.videoHeight){reject(new Error("webcam not ready"));return}const canvas=el.webcamCanvas;canvas.width=el.webcamPreview.videoWidth;canvas.height=el.webcamPreview.videoHeight;const ctx=canvas.getContext("2d");if(!ctx){reject(new Error("cannot access canvas context"));return}ctx.drawImage(el.webcamPreview,0,0,canvas.width,canvas.height);el.capturedImage.src=canvas.toDataURL("image/jpeg",.92);canvas.toBlob(blob=>{if(!blob){reject(new Error("failed to capture frame"));return}resolve(blob)},"image/jpeg",.92)})}
-async function suggestDishesFromWebcam(){if(!el.token.value.trim())throw new Error("token missing");if(!webcamStream)await startWebcam();const imageBlob=await captureWebcamFrameAsBlob(),form=new FormData();form.append("image",imageBlob,"webcam-ingredients.jpg");form.append("locale",el.mealLocale.value.trim()||"en");if(el.mealConstraints.value.trim())form.append("constraints",el.mealConstraints.value.trim());const base=el.apiBase.value.trim(),res=await fetch(`${base}/api/v1/meal-assistant/suggest-dishes`,{method:"POST",headers:{Authorization:`Bearer ${el.token.value.trim()}`},body:form}),raw=await res.text();setRaw(el.suggestRaw,raw);if(!res.ok)throw new Error(`suggest-dishes failed (${res.status})`);const parsed=JSON.parse(raw);latestAnalysisToken=parsed.analysisToken||"";latestSuggestionItems=Array.isArray(parsed.suggestions)?parsed.suggestions:[];setDishOptions(latestSuggestionItems);updateButtons();log("meal_suggest_ok",`${latestSuggestionItems.length} suggestions`)}
-async function syncMealContextToLive(selectedDishIdOverride){if(!socket?.connected)throw new Error("socket not connected");if(!latestAnalysisToken)throw new Error("analysisToken missing. Run suggest-dishes first");const selectedDishId=(selectedDishIdOverride||el.dishSelect.value||"").trim()||undefined,preferences=el.mealPreferences.value.trim()||undefined,payload={analysisToken:latestAnalysisToken,selectedDishId,preferences};log("emit_meal_context",JSON.stringify({selectedDishId:payload.selectedDishId||null,hasPreferences:Boolean(preferences)}));await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{socket.off("meal_context_synced",onSynced);reject(new Error("meal context sync timeout"))},1e4);function onSynced(data){clearTimeout(timeout);socket.off("meal_context_synced",onSynced);resolve(data)}socket.on("meal_context_synced",onSynced);socket.emit("meal_context",payload)})}
-async function generateRecipeFromSelectedDish(){if(!el.token.value.trim())throw new Error("token missing");if(!latestAnalysisToken)throw new Error("analysisToken missing. Run suggest-dishes first");const selectedDishId=el.dishSelect.value;if(!selectedDishId)throw new Error("selected dish is empty");const servingsValue=Number(el.mealServings.value||2),payload={analysisToken:latestAnalysisToken,selectedDishId,servings:Number.isFinite(servingsValue)?servingsValue:2,preferences:el.mealPreferences.value.trim()||undefined},base=el.apiBase.value.trim(),res=await fetch(`${base}/api/v1/meal-assistant/generate-recipe`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${el.token.value.trim()}`},body:JSON.stringify(payload)}),raw=await res.text();setRaw(el.generateRaw,raw);if(!res.ok)throw new Error(`generate-recipe failed (${res.status})`);log("meal_generate_ok",selectedDishId)}
-async function runMealWebcamFlow(){if(mealFlowInProgress)return;try{mealFlowInProgress=true;updateButtons();setStatus("running meal webcam flow...","warn");if(!socket?.connected)await connectSocket();await suggestDishesFromWebcam();if(!el.dishSelect.value&&el.dishSelect.options.length>0)el.dishSelect.selectedIndex=0;await syncMealContextToLive(el.dishSelect.value);await generateRecipeFromSelectedDish();await syncMealContextToLive(el.dishSelect.value);setStatus("meal webcam flow completed","ok")}catch(error){log("meal_flow_error",String(error));setStatus("meal webcam flow failed","bad")}finally{mealFlowInProgress=false;updateButtons()}}
-function connectSocket(){const base=el.apiBase.value.trim(),token=el.token.value.trim();if(!base||!token){setStatus("missing base url or token","bad");return Promise.reject(new Error("missing base url or token"))}if(socket?.connected){setStatus("socket already connected","ok");updateButtons();return Promise.resolve()}if(socket){try{socket.removeAllListeners();socket.disconnect()}catch(_){ }socket=null}setStatus("connecting socket...","warn");socket=io(`${base}/api/v1/agent/live`,{transports:["websocket"],auth:{token}});socket.on("connect",()=>{log("socket_connect",socket.id);setStatus("socket connected","ok");if(latestAnalysisToken){syncMealContextToLive().catch(error=>log("meal_context_auto_sync_error",String(error)))}updateButtons()});socket.on("disconnect",reason=>{log("socket_disconnect",reason);setStatus(`socket disconnected (${reason})`,"warn");stopMic(false);updateButtons()});socket.on("connect_error",error=>{log("connect_error",error.message||String(error));setStatus("socket connect error","bad");updateButtons()});socket.on("transcript_partial",data=>log("transcript_partial",JSON.stringify(data)));socket.on("transcript_final",data=>log("transcript_final",JSON.stringify(data)));socket.on("model_text",data=>log("model_text",JSON.stringify(data)));socket.on("model_audio_chunk",data=>{log("model_audio_chunk",`${data.mimeType} / ${data.chunkBase64?.length||0} chars`);playModelPcmChunk(data.chunkBase64,data.mimeType)});socket.on("error",data=>log("server_error",JSON.stringify(data)));socket.on("session_closed",data=>log("session_closed",JSON.stringify(data)));socket.on("meal_context_synced",data=>{log("meal_context_synced",JSON.stringify(data));setStatus("meal context synced to live session","ok");updateButtons()});updateButtons();return new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error("socket connect timeout")),1e4);socket.once("connect",()=>{clearTimeout(timeout);resolve()});socket.once("connect_error",error=>{clearTimeout(timeout);reject(error instanceof Error?error:new Error(String(error)))})})}
-function disconnectSocket(){if(socket){try{socket.disconnect()}catch(_){ }}socket=null;stopMic(false);stopWebcam();if(playbackAudioContext){try{playbackAudioContext.close()}catch(_){ }playbackAudioContext=null;playbackCursorSec=0}setStatus("socket disconnected","warn");updateButtons()}
-async function startMic(){if(!socket||!socket.connected){setStatus("socket not connected","bad");return}try{stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});audioContext=new(window.AudioContext||window.webkitAudioContext)();sourceNode=audioContext.createMediaStreamSource(stream);processorNode=audioContext.createScriptProcessor(4096,1,1);processorNode.onaudioprocess=event=>{if(!captureActive)return;const input=event.inputBuffer.getChannelData(0),copy=new Float32Array(input.length);copy.set(input);emitPcmChunk(copy,audioContext.sampleRate)};sourceNode.connect(processorNode);processorNode.connect(audioContext.destination);captureActive=true;log("mic_start",`audio/pcm;rate=${TARGET_SAMPLE_RATE} (source=${audioContext.sampleRate})`);setStatus("recording...","ok");updateButtons()}catch(error){log("mic_start_error",String(error));setStatus("cannot access microphone","bad");stopMic(false)}}
-function stopMic(sendEndTurn){captureActive=false;if(processorNode){try{processorNode.disconnect()}catch(_){ }processorNode.onaudioprocess=null}processorNode=null;if(sourceNode){try{sourceNode.disconnect()}catch(_){ }}sourceNode=null;if(audioContext){try{audioContext.close()}catch(_){ }}audioContext=null;if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;if(sendEndTurn&&socket?.connected){socket.emit("end_turn");log("emit_end_turn")}setStatus("connected, mic stopped","warn");updateButtons()}
-function toggleAudioPlayback(){autoPlayModelAudio=!autoPlayModelAudio;if(!autoPlayModelAudio&&playbackAudioContext){try{playbackAudioContext.close()}catch(_){ }playbackAudioContext=null;playbackCursorSec=0}log("toggle_audio_playback",autoPlayModelAudio?"ON":"OFF");updateButtons()}
-async function testMicPlayback(){if(captureActive){setStatus("stop live mic before playback test","bad");return}if(micTestInProgress)return;const preferred=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus"],mimeType=preferred.find(type=>MediaRecorder.isTypeSupported(type))||"";let testStream=null,recorder=null;const chunks=[];try{micTestInProgress=true;updateButtons();setStatus("testing mic: recording 3 seconds...","warn");testStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});recorder=mimeType?new MediaRecorder(testStream,{mimeType}):new MediaRecorder(testStream);recorder.ondataavailable=event=>{if(event.data&&event.data.size>0)chunks.push(event.data)};recorder.onerror=event=>{log("mic_playback_error",JSON.stringify(event.error||{}));setStatus("mic playback recorder error","bad")};recorder.start();log("mic_playback_record_start",recorder.mimeType||"unknown");await new Promise(resolve=>setTimeout(resolve,3e3));recorder.stop();await new Promise(resolve=>{recorder.onstop=()=>resolve()});const blobType=recorder.mimeType||mimeType||"audio/webm",blob=new Blob(chunks,{type:blobType});if(!blob.size)throw new Error("Empty recording");const url=URL.createObjectURL(blob);el.micPlayback.src=url;el.micPlayback.play().catch(()=>{});log("mic_playback_ready",`${blobType} / ${blob.size} bytes`);setStatus("mic playback ready (playing)","ok")}catch(error){log("mic_playback_exception",String(error));setStatus("mic playback failed","bad")}finally{if(testStream)testStream.getTracks().forEach(track=>track.stop());micTestInProgress=false;updateButtons()}}
+        <section id="talkPanel" class="mode-panel">
+          <section id="chatFeed" class="chat-feed">
+            <div class="chat-empty">Connect socket and start talking to the model.</div>
+          </section>
 
-el.registerBtn.addEventListener("click",register);el.loginBtn.addEventListener("click",login);el.connectBtn.addEventListener("click",()=>connectSocket().catch(error=>log("connect_socket_error",String(error))));el.disconnectBtn.addEventListener("click",disconnectSocket);el.runFlowBtn.addEventListener("click",runFullFlow);el.sendTextBtn.addEventListener("click",sendTextInput);el.startBtn.addEventListener("click",startMic);el.stopBtn.addEventListener("click",()=>stopMic(true));el.micPlaybackBtn.addEventListener("click",testMicPlayback);el.toggleAudioBtn.addEventListener("click",toggleAudioPlayback);
-el.startCamBtn.addEventListener("click",async()=>{try{await startWebcam();setStatus("webcam ready","ok")}catch(error){log("webcam_start_error",String(error));setStatus("cannot start webcam","bad")}finally{updateButtons()}});
-el.stopCamBtn.addEventListener("click",()=>{stopWebcam();updateButtons()});
-el.captureSuggestBtn.addEventListener("click",async()=>{try{mealFlowInProgress=true;updateButtons();setStatus("capturing and suggesting...","warn");await suggestDishesFromWebcam();if(socket?.connected)await syncMealContextToLive();setStatus("suggest-dishes completed","ok")}catch(error){log("meal_suggest_error",String(error));setStatus("suggest-dishes failed","bad")}finally{mealFlowInProgress=false;updateButtons()}});
-el.syncContextBtn.addEventListener("click",async()=>{try{mealFlowInProgress=true;updateButtons();setStatus("syncing meal context...","warn");await syncMealContextToLive();setStatus("meal context synced","ok")}catch(error){log("meal_context_sync_error",String(error));setStatus("meal context sync failed","bad")}finally{mealFlowInProgress=false;updateButtons()}});
-el.generateRecipeBtn.addEventListener("click",async()=>{try{mealFlowInProgress=true;updateButtons();setStatus("generating recipe...","warn");await generateRecipeFromSelectedDish();await syncMealContextToLive(el.dishSelect.value);setStatus("generate-recipe completed","ok")}catch(error){log("meal_generate_error",String(error));setStatus("generate-recipe failed","bad")}finally{mealFlowInProgress=false;updateButtons()}});
-el.runMealFlowBtn.addEventListener("click",runMealWebcamFlow);el.clearBtn.addEventListener("click",()=>{el.logs.textContent=""});el.textInput.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();sendTextInput()}});el.token.addEventListener("input",updateButtons);
-window.addEventListener("beforeunload",()=>{stopWebcam();stopMic(false);disconnectSocket()});
-setRaw(el.suggestRaw,"");setRaw(el.generateRaw,"");setDishOptions([]);setStatus("idle","warn");updateButtons();
-</script>
-</body>
+          <section class="composer">
+            <input id="textInput" placeholder="Type message to model..." />
+            <button type="button" id="sendTextBtn" disabled>Send</button>
+          </section>
+
+          <section class="quick-actions">
+            <button type="button" id="startBtn" disabled>Start Mic</button>
+            <button type="button" id="stopBtn" class="danger" disabled>Stop + End</button>
+            <button type="button" id="micPlaybackBtn" class="secondary">Mic Test</button>
+            <button type="button" id="toggleAudioBtn" class="secondary">Auto Audio: ON</button>
+          </section>
+        </section>
+
+        <details class="panel" open>
+          <summary>Account & Session</summary>
+          <div class="grid">
+            <div class="field full">
+              <label for="apiBase">API Base URL</label>
+              <input id="apiBase" value="http://127.0.0.1:3000" />
+            </div>
+            <div class="field">
+              <label for="name">Name</label>
+              <input id="name" placeholder="Your name" />
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" placeholder="you@example.com" />
+            </div>
+            <div class="field full">
+              <label for="password">Password</label>
+              <input id="password" type="password" placeholder="********" />
+            </div>
+            <div class="field full">
+              <label for="token">JWT Token</label>
+              <input id="token" placeholder="Auto-filled after login/register" />
+            </div>
+          </div>
+          <div class="row top-actions">
+            <button type="button" id="registerBtn">Register</button>
+            <button type="button" id="loginBtn">Login</button>
+          </div>
+        </details>
+
+        <details id="mealPanel" class="panel mode-panel hidden">
+          <summary>Meal Camera Flow</summary>
+          <div class="grid">
+            <div class="field">
+              <label for="mealLocale">Locale</label>
+              <input id="mealLocale" value="en" />
+            </div>
+            <div class="field">
+              <label for="mealServings">Servings</label>
+              <input id="mealServings" type="number" min="1" max="20" value="2" />
+            </div>
+            <div class="field full">
+              <label for="mealConstraints">Constraints</label>
+              <input id="mealConstraints" placeholder="high protein, low sodium" />
+            </div>
+            <div class="field full">
+              <label for="mealPreferences">Preferences</label>
+              <input id="mealPreferences" placeholder="less oil" />
+            </div>
+            <div class="field full">
+              <label for="dishSelect">Selected Dish</label>
+              <select id="dishSelect">
+                <option value="">(No suggestion yet)</option>
+              </select>
+            </div>
+          </div>
+          <div class="row top-actions">
+            <button type="button" id="startCamBtn">Start Cam</button>
+            <button type="button" id="stopCamBtn" class="secondary" disabled>Stop Cam</button>
+            <button type="button" id="captureSuggestBtn" class="secondary">
+              Capture + Suggest
+            </button>
+          </div>
+          <div class="row">
+            <button type="button" id="syncContextBtn" class="secondary">Sync Context</button>
+            <button type="button" id="generateRecipeBtn" class="secondary">Generate Recipe</button>
+            <button type="button" id="runMealFlowBtn" class="secondary">Run Meal Flow</button>
+          </div>
+          <div class="media">
+            <video id="webcamPreview" autoplay playsinline muted></video>
+            <img id="capturedImage" class="capture" alt="Captured image preview" />
+          </div>
+          <canvas id="webcamCanvas" style="display: none"></canvas>
+        </details>
+
+        <details class="panel">
+          <summary>Raw API & Debug</summary>
+          <div class="split">
+            <pre id="suggestRaw" class="raw"></pre>
+            <pre id="generateRaw" class="raw"></pre>
+          </div>
+          <div class="meta">
+            <strong>Live Logs</strong>
+            <button type="button" id="clearBtn" class="secondary">Clear</button>
+          </div>
+          <div id="logs" class="logs"></div>
+          <audio id="micPlayback" class="audio" controls></audio>
+        </details>
+      </main>
+    </div>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script>
+      const el = {
+        apiBase: document.getElementById('apiBase'),
+        modeTalkBtn: document.getElementById('modeTalkBtn'),
+        modeCaptureBtn: document.getElementById('modeCaptureBtn'),
+        talkPanel: document.getElementById('talkPanel'),
+        mealPanel: document.getElementById('mealPanel'),
+        chatFeed: document.getElementById('chatFeed'),
+        name: document.getElementById('name'),
+        email: document.getElementById('email'),
+        password: document.getElementById('password'),
+        token: document.getElementById('token'),
+        textInput: document.getElementById('textInput'),
+        registerBtn: document.getElementById('registerBtn'),
+        loginBtn: document.getElementById('loginBtn'),
+        connectBtn: document.getElementById('connectBtn'),
+        disconnectBtn: document.getElementById('disconnectBtn'),
+        runFlowBtn: document.getElementById('runFlowBtn'),
+        resetContextBtn: document.getElementById('resetContextBtn'),
+        sendTextBtn: document.getElementById('sendTextBtn'),
+        startBtn: document.getElementById('startBtn'),
+        stopBtn: document.getElementById('stopBtn'),
+        micPlaybackBtn: document.getElementById('micPlaybackBtn'),
+        toggleAudioBtn: document.getElementById('toggleAudioBtn'),
+        clearBtn: document.getElementById('clearBtn'),
+        micPlayback: document.getElementById('micPlayback'),
+        mealLocale: document.getElementById('mealLocale'),
+        mealConstraints: document.getElementById('mealConstraints'),
+        mealServings: document.getElementById('mealServings'),
+        mealPreferences: document.getElementById('mealPreferences'),
+        dishSelect: document.getElementById('dishSelect'),
+        startCamBtn: document.getElementById('startCamBtn'),
+        stopCamBtn: document.getElementById('stopCamBtn'),
+        captureSuggestBtn: document.getElementById('captureSuggestBtn'),
+        syncContextBtn: document.getElementById('syncContextBtn'),
+        generateRecipeBtn: document.getElementById('generateRecipeBtn'),
+        runMealFlowBtn: document.getElementById('runMealFlowBtn'),
+        webcamPreview: document.getElementById('webcamPreview'),
+        capturedImage: document.getElementById('capturedImage'),
+        webcamCanvas: document.getElementById('webcamCanvas'),
+        suggestRaw: document.getElementById('suggestRaw'),
+        generateRaw: document.getElementById('generateRaw'),
+        status: document.getElementById('status'),
+        logs: document.getElementById('logs'),
+      };
+      let socket = null,
+        stream = null,
+        audioContext = null,
+        sourceNode = null,
+        processorNode = null,
+        captureActive = false,
+        micTestInProgress = false,
+        autoPlayModelAudio = true,
+        playbackAudioContext = null,
+        playbackCursorSec = 0,
+        webcamStream = null,
+        mealFlowInProgress = false,
+        mealContextSyncTimer = null,
+        latestAnalysisToken = '',
+        latestSuggestionItems = [],
+        activeMode = 'talk';
+      const TARGET_SAMPLE_RATE = 16000;
+      function setStatus(text, kind) {
+        el.status.textContent = text;
+        el.status.className = `status-pill ${kind || 'warn'}`;
+      }
+      function log(event, payload) {
+        const ts = new Date().toISOString();
+        const line = `[${ts}] ${event}${payload !== undefined ? `: ${payload}` : ''}`;
+        el.logs.textContent += `${line}\n`;
+        el.logs.scrollTop = el.logs.scrollHeight;
+      }
+      function setMode(mode) {
+        activeMode = mode === 'capture' ? 'capture' : 'talk';
+        const talkActive = activeMode === 'talk';
+        el.talkPanel.classList.toggle('hidden', !talkActive);
+        el.mealPanel.classList.toggle('hidden', talkActive);
+        el.modeTalkBtn.classList.toggle('active', talkActive);
+        el.modeCaptureBtn.classList.toggle('active', !talkActive);
+        el.modeTalkBtn.classList.toggle('secondary', !talkActive);
+        el.modeCaptureBtn.classList.toggle('secondary', talkActive);
+      }
+      function appendChat(role, text) {
+        if (!text) return;
+        const empty = el.chatFeed.querySelector('.chat-empty');
+        if (empty) empty.remove();
+        const row = document.createElement('div');
+        row.className = `bubble-row ${role}`;
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${role}`;
+        bubble.textContent = text;
+        row.appendChild(bubble);
+        el.chatFeed.appendChild(row);
+        el.chatFeed.scrollTop = el.chatFeed.scrollHeight;
+      }
+      function resetChatFeed(message) {
+        el.chatFeed.innerHTML = '';
+        if (message) {
+          appendChat('system', message);
+          return;
+        }
+        el.chatFeed.innerHTML =
+          '<div class="chat-empty">Connect socket and start talking to the model.</div>';
+      }
+      function resetLocalContextState() {
+        latestAnalysisToken = '';
+        latestSuggestionItems = [];
+        if (mealContextSyncTimer) {
+          clearTimeout(mealContextSyncTimer);
+          mealContextSyncTimer = null;
+        }
+        el.textInput.value = '';
+        el.mealConstraints.value = '';
+        el.mealPreferences.value = '';
+        el.capturedImage.removeAttribute('src');
+        setDishOptions([]);
+        setRaw(el.suggestRaw, '');
+        setRaw(el.generateRaw, '');
+        resetChatFeed('Context reset. Start a new meal conversation.');
+        updateButtons();
+      }
+      async function reconnectSocketAfterReset() {
+        if (!socket?.connected) {
+          return;
+        }
+        try {
+          socket.removeAllListeners();
+          socket.disconnect();
+        } catch (_) {}
+        socket = null;
+        stopMic(false);
+        if (playbackAudioContext) {
+          try {
+            playbackAudioContext.close();
+          } catch (_) {}
+          playbackAudioContext = null;
+          playbackCursorSec = 0;
+        }
+        await connectSocket();
+      }
+      async function resetContext() {
+        const base = el.apiBase.value.trim();
+        const token = el.token.value.trim();
+        const hadActiveSocket = Boolean(socket?.connected);
+
+        try {
+          setMode('talk');
+          resetLocalContextState();
+
+          if (base && token) {
+            const res = await fetch(`${base}/api/v1/meal-assistant/context/reset`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const raw = await res.text();
+            if (!res.ok) {
+              throw new Error(`reset context failed (${res.status}): ${raw}`);
+            }
+          }
+
+          if (hadActiveSocket) {
+            setStatus('reconnecting after context reset...', 'warn');
+            await reconnectSocketAfterReset();
+          }
+
+          setStatus('context reset', 'ok');
+        } catch (error) {
+          log('reset_context_error', String(error));
+          setStatus('reset context failed', 'bad');
+          appendChat('system', `Reset failed: ${String(error)}`);
+        }
+      }
+      function updateButtons() {
+        const connected = Boolean(socket && socket.connected),
+          recording = captureActive,
+          camReady = Boolean(webcamStream),
+          hasToken = Boolean(el.token.value.trim()),
+          hasAnalysis = Boolean(latestAnalysisToken);
+        el.connectBtn.disabled = connected;
+        el.disconnectBtn.disabled = !connected;
+        el.sendTextBtn.disabled = !connected;
+        el.startBtn.disabled = !connected || recording;
+        el.stopBtn.disabled = !connected || !recording;
+        el.micPlaybackBtn.disabled = recording || micTestInProgress;
+        el.startCamBtn.disabled = camReady || mealFlowInProgress;
+        el.stopCamBtn.disabled = !camReady || mealFlowInProgress;
+        el.captureSuggestBtn.disabled = !camReady || !hasToken || mealFlowInProgress;
+        el.syncContextBtn.disabled = !connected || !hasAnalysis || mealFlowInProgress;
+        el.generateRecipeBtn.disabled = !hasAnalysis || !hasToken || mealFlowInProgress;
+        el.runMealFlowBtn.disabled = !hasToken || mealFlowInProgress;
+        el.toggleAudioBtn.textContent = `Auto Play Audio: ${autoPlayModelAudio ? 'ON' : 'OFF'}`;
+      }
+      function bufferToBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const step = 0x8000;
+        for (let i = 0; i < bytes.length; i += step) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + step));
+        }
+        return btoa(binary);
+      }
+      function base64ToBytes(base64) {
+        const binary = atob(base64),
+          bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      }
+      function parseSampleRateFromMime(mimeType) {
+        if (!mimeType) return 24000;
+        const m = mimeType.match(/rate=(\d+)/i);
+        return m ? Number(m[1]) || 24000 : 24000;
+      }
+      function playModelPcmChunk(chunkBase64, mimeType) {
+        if (
+          !autoPlayModelAudio ||
+          !chunkBase64 ||
+          typeof chunkBase64 !== 'string' ||
+          !mimeType?.toLowerCase().startsWith('audio/pcm')
+        )
+          return;
+        const sampleRate = parseSampleRateFromMime(mimeType),
+          pcmBytes = base64ToBytes(chunkBase64);
+        if (pcmBytes.length < 2) return;
+        if (!playbackAudioContext) {
+          playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+          playbackCursorSec = playbackAudioContext.currentTime + 0.03;
+        }
+        const samplesCount = Math.floor(pcmBytes.length / 2),
+          audioBuffer = playbackAudioContext.createBuffer(1, samplesCount, sampleRate),
+          channelData = audioBuffer.getChannelData(0),
+          view = new DataView(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength);
+        for (let i = 0; i < samplesCount; i += 1) {
+          channelData[i] = view.getInt16(i * 2, true) / 32768;
+        }
+        const source = playbackAudioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(playbackAudioContext.destination);
+        const startAt = Math.max(playbackAudioContext.currentTime + 0.01, playbackCursorSec);
+        source.start(startAt);
+        playbackCursorSec = startAt + audioBuffer.duration;
+      }
+      function downsampleBuffer(input, inputRate, outputRate) {
+        if (outputRate >= inputRate) return input;
+        const ratio = inputRate / outputRate,
+          outputLength = Math.round(input.length / ratio),
+          output = new Float32Array(outputLength);
+        let outputOffset = 0,
+          inputOffset = 0;
+        while (outputOffset < outputLength) {
+          const nextInputOffset = Math.round((outputOffset + 1) * ratio);
+          let sum = 0,
+            count = 0;
+          for (let i = inputOffset; i < nextInputOffset && i < input.length; i += 1) {
+            sum += input[i];
+            count += 1;
+          }
+          output[outputOffset] = count > 0 ? sum / count : 0;
+          outputOffset += 1;
+          inputOffset = nextInputOffset;
+        }
+        return output;
+      }
+      function floatTo16BitPcm(floatSamples) {
+        const buffer = new ArrayBuffer(floatSamples.length * 2),
+          view = new DataView(buffer);
+        for (let i = 0; i < floatSamples.length; i += 1) {
+          const sample = Math.max(-1, Math.min(1, floatSamples[i]));
+          view.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        }
+        return buffer;
+      }
+      function emitPcmChunk(floatSamples, inputSampleRate) {
+        if (!socket?.connected || !captureActive) return;
+        const downsampled = downsampleBuffer(floatSamples, inputSampleRate, TARGET_SAMPLE_RATE);
+        if (!downsampled.length) return;
+        socket.emit('audio_chunk', {
+          chunkBase64: bufferToBase64(floatTo16BitPcm(downsampled)),
+          mimeType: `audio/pcm;rate=${TARGET_SAMPLE_RATE}`,
+        });
+      }
+      function toPrettyText(rawText) {
+        if (!rawText) return '';
+        try {
+          return JSON.stringify(JSON.parse(rawText), null, 2);
+        } catch (_) {
+          return rawText;
+        }
+      }
+      function setRaw(preEl, rawText) {
+        preEl.textContent = toPrettyText(rawText);
+      }
+      function setDishOptions(items) {
+        el.dishSelect.innerHTML = '';
+        if (!items.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = '(No suggestion yet)';
+          el.dishSelect.appendChild(option);
+          return;
+        }
+        for (const item of items) {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = `${item.name} - ${item.reason || ''}`.trim();
+          el.dishSelect.appendChild(option);
+        }
+        scheduleAutoMealContextSync();
+      }
+      function scheduleAutoMealContextSync() {
+        if (!socket?.connected || !latestAnalysisToken || mealFlowInProgress) {
+          return;
+        }
+        if (mealContextSyncTimer) {
+          clearTimeout(mealContextSyncTimer);
+        }
+        mealContextSyncTimer = setTimeout(() => {
+          syncMealContextToLive().catch(error =>
+            log('auto_meal_context_sync_error', String(error)),
+          );
+        }, 500);
+      }
+      async function login() {
+        const base = el.apiBase.value.trim(),
+          email = el.email.value.trim(),
+          password = el.password.value;
+        if (!base || !email || !password) {
+          setStatus('missing login inputs', 'bad');
+          return;
+        }
+        try {
+          setStatus('logging in...', 'warn');
+          const res = await fetch(`${base}/api/v1/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password }),
+            }),
+            body = await res.json().catch(() => ({}));
+          if (!res.ok || !body.token) {
+            log('login_error', JSON.stringify(body));
+            setStatus(`login failed (${res.status})`, 'bad');
+            return;
+          }
+          el.token.value = body.token;
+          log('login_ok', body.user?.email || email);
+          setStatus('login ok', 'ok');
+          updateButtons();
+        } catch (error) {
+          log('login_exception', String(error));
+          setStatus('login exception', 'bad');
+        }
+      }
+      async function register() {
+        const base = el.apiBase.value.trim(),
+          name = el.name.value.trim(),
+          email = el.email.value.trim(),
+          password = el.password.value;
+        if (!base || !name || !email || !password) {
+          setStatus('missing register inputs', 'bad');
+          return;
+        }
+        try {
+          setStatus('registering...', 'warn');
+          const res = await fetch(`${base}/api/v1/auth/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, email, password }),
+            }),
+            body = await res.json().catch(() => ({}));
+          if (!res.ok || !body.token) {
+            log('register_error', JSON.stringify(body));
+            setStatus(`register failed (${res.status})`, 'bad');
+            return;
+          }
+          el.token.value = body.token;
+          log('register_ok', body.user?.email || email);
+          setStatus('register ok', 'ok');
+          updateButtons();
+        } catch (error) {
+          log('register_exception', String(error));
+          setStatus('register exception', 'bad');
+        }
+      }
+      function sendTextInput() {
+        const text = el.textInput.value.trim();
+        setMode('talk');
+        if (!socket?.connected) {
+          setStatus('socket not connected', 'bad');
+          return;
+        }
+        if (!text) {
+          setStatus('text input is empty', 'bad');
+          return;
+        }
+        socket.emit('text_input', { text });
+        appendChat('user', text);
+        log('emit_text_input', text);
+        setStatus('text sent', 'ok');
+        el.textInput.value = '';
+      }
+      async function runFullFlow() {
+        try {
+          setStatus('running full flow...', 'warn');
+          if (!el.token.value.trim() && el.email.value.trim() && el.password.value) await login();
+          if (!el.token.value.trim()) throw new Error('token missing after login');
+          await connectSocket();
+          const text = el.textInput.value.trim();
+          if (text) sendTextInput();
+          else log('full_flow_note', 'socket connected. Enter text or use Start Mic.');
+          setStatus('full flow done: connected', 'ok');
+        } catch (error) {
+          log('full_flow_error', String(error));
+          setStatus('full flow failed', 'bad');
+        }
+      }
+      async function startWebcam() {
+        setMode('capture');
+        if (webcamStream) return;
+        webcamStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' },
+          audio: false,
+        });
+        el.webcamPreview.srcObject = webcamStream;
+        await el.webcamPreview.play().catch(() => {});
+        log('webcam_start', 'camera started');
+      }
+      function stopWebcam() {
+        if (!webcamStream) return;
+        webcamStream.getTracks().forEach(t => t.stop());
+        webcamStream = null;
+        el.webcamPreview.srcObject = null;
+        log('webcam_stop', 'camera stopped');
+      }
+      function captureWebcamFrameAsBlob() {
+        return new Promise((resolve, reject) => {
+          if (!webcamStream || !el.webcamPreview.videoWidth || !el.webcamPreview.videoHeight) {
+            reject(new Error('webcam not ready'));
+            return;
+          }
+          const canvas = el.webcamCanvas;
+          canvas.width = el.webcamPreview.videoWidth;
+          canvas.height = el.webcamPreview.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('cannot access canvas context'));
+            return;
+          }
+          ctx.drawImage(el.webcamPreview, 0, 0, canvas.width, canvas.height);
+          el.capturedImage.src = canvas.toDataURL('image/jpeg', 0.92);
+          canvas.toBlob(
+            blob => {
+              if (!blob) {
+                reject(new Error('failed to capture frame'));
+                return;
+              }
+              resolve(blob);
+            },
+            'image/jpeg',
+            0.92,
+          );
+        });
+      }
+      async function suggestDishesFromWebcam() {
+        if (!el.token.value.trim()) throw new Error('token missing');
+        if (!webcamStream) await startWebcam();
+        const imageBlob = await captureWebcamFrameAsBlob(),
+          form = new FormData();
+        form.append('image', imageBlob, 'webcam-ingredients.jpg');
+        form.append('locale', el.mealLocale.value.trim() || 'en');
+        if (el.mealConstraints.value.trim())
+          form.append('constraints', el.mealConstraints.value.trim());
+        const base = el.apiBase.value.trim(),
+          res = await fetch(`${base}/api/v1/meal-assistant/suggest-dishes`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${el.token.value.trim()}` },
+            body: form,
+          }),
+          raw = await res.text();
+        setRaw(el.suggestRaw, raw);
+        if (!res.ok) throw new Error(`suggest-dishes failed (${res.status})`);
+        const parsed = JSON.parse(raw);
+        latestAnalysisToken = parsed.analysisToken || '';
+        latestSuggestionItems = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+        setDishOptions(latestSuggestionItems);
+        updateButtons();
+        scheduleAutoMealContextSync();
+        log('meal_suggest_ok', `${latestSuggestionItems.length} suggestions`);
+      }
+      async function syncMealContextToLive(selectedDishIdOverride) {
+        if (!socket?.connected) throw new Error('socket not connected');
+        if (!latestAnalysisToken)
+          throw new Error('analysisToken missing. Run suggest-dishes first');
+        const selectedDishId =
+            (selectedDishIdOverride || el.dishSelect.value || '').trim() || undefined,
+          preferences = el.mealPreferences.value.trim() || undefined,
+          payload = { analysisToken: latestAnalysisToken, selectedDishId, preferences };
+        log(
+          'emit_meal_context',
+          JSON.stringify({
+            selectedDishId: payload.selectedDishId || null,
+            hasPreferences: Boolean(preferences),
+          }),
+        );
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            socket.off('meal_context_synced', onSynced);
+            reject(new Error('meal context sync timeout'));
+          }, 1e4);
+          function onSynced(data) {
+            clearTimeout(timeout);
+            socket.off('meal_context_synced', onSynced);
+            resolve(data);
+          }
+          socket.on('meal_context_synced', onSynced);
+          socket.emit('meal_context', payload);
+        });
+      }
+      async function generateRecipeFromSelectedDish() {
+        if (!el.token.value.trim()) throw new Error('token missing');
+        if (!latestAnalysisToken)
+          throw new Error('analysisToken missing. Run suggest-dishes first');
+        const selectedDishId = el.dishSelect.value;
+        if (!selectedDishId) throw new Error('selected dish is empty');
+        const servingsValue = Number(el.mealServings.value || 2),
+          payload = {
+            analysisToken: latestAnalysisToken,
+            selectedDishId,
+            servings: Number.isFinite(servingsValue) ? servingsValue : 2,
+            preferences: el.mealPreferences.value.trim() || undefined,
+          },
+          base = el.apiBase.value.trim(),
+          res = await fetch(`${base}/api/v1/meal-assistant/generate-recipe`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${el.token.value.trim()}`,
+            },
+            body: JSON.stringify(payload),
+          }),
+          raw = await res.text();
+        setRaw(el.generateRaw, raw);
+        if (!res.ok) throw new Error(`generate-recipe failed (${res.status})`);
+        log('meal_generate_ok', selectedDishId);
+      }
+      async function runMealWebcamFlow() {
+        if (mealFlowInProgress) return;
+        try {
+          mealFlowInProgress = true;
+          updateButtons();
+          setStatus('running meal webcam flow...', 'warn');
+          if (!socket?.connected) await connectSocket();
+          await suggestDishesFromWebcam();
+          if (!el.dishSelect.value && el.dishSelect.options.length > 0)
+            el.dishSelect.selectedIndex = 0;
+          await syncMealContextToLive(el.dishSelect.value);
+          await generateRecipeFromSelectedDish();
+          await syncMealContextToLive(el.dishSelect.value);
+          setStatus('meal webcam flow completed', 'ok');
+        } catch (error) {
+          log('meal_flow_error', String(error));
+          setStatus('meal webcam flow failed', 'bad');
+        } finally {
+          mealFlowInProgress = false;
+          updateButtons();
+        }
+      }
+      function connectSocket() {
+        const base = el.apiBase.value.trim(),
+          token = el.token.value.trim();
+        if (!base || !token) {
+          setStatus('missing base url or token', 'bad');
+          return Promise.reject(new Error('missing base url or token'));
+        }
+        if (socket?.connected) {
+          setStatus('socket already connected', 'ok');
+          updateButtons();
+          return Promise.resolve();
+        }
+        if (socket) {
+          try {
+            socket.removeAllListeners();
+            socket.disconnect();
+          } catch (_) {}
+          socket = null;
+        }
+        setStatus('connecting socket...', 'warn');
+        socket = io(`${base}/api/v1/agent/live`, { transports: ['websocket'], auth: { token } });
+        socket.on('connect', () => {
+          log('socket_connect', socket.id);
+          setStatus('socket connected', 'ok');
+          appendChat('system', 'Connected to live model session.');
+          if (latestAnalysisToken) {
+            syncMealContextToLive().catch(error =>
+              log('meal_context_auto_sync_error', String(error)),
+            );
+          }
+          updateButtons();
+        });
+        socket.on('disconnect', reason => {
+          log('socket_disconnect', reason);
+          setStatus(`socket disconnected (${reason})`, 'warn');
+          appendChat('system', `Disconnected: ${reason}`);
+          stopMic(false);
+          updateButtons();
+        });
+        socket.on('connect_error', error => {
+          log('connect_error', error.message || String(error));
+          setStatus('socket connect error', 'bad');
+          appendChat('system', `Connect error: ${error.message || String(error)}`);
+          updateButtons();
+        });
+        socket.on('transcript_partial', data => log('transcript_partial', JSON.stringify(data)));
+        socket.on('transcript_final', data => {
+          log('transcript_final', JSON.stringify(data));
+          if (typeof data?.text === 'string') {
+            appendChat('user', data.text);
+          }
+        });
+        socket.on('model_text', data => {
+          log('model_text', JSON.stringify(data));
+          if (typeof data?.text === 'string') {
+            appendChat('model', data.text);
+          }
+        });
+        socket.on('model_audio_chunk', data => {
+          log('model_audio_chunk', `${data.mimeType} / ${data.chunkBase64?.length || 0} chars`);
+          playModelPcmChunk(data.chunkBase64, data.mimeType);
+        });
+        socket.on('error', data => {
+          log('server_error', JSON.stringify(data));
+          appendChat('system', `Server error: ${data?.message || 'unknown error'}`);
+        });
+        socket.on('session_closed', data => {
+          log('session_closed', JSON.stringify(data));
+          appendChat('system', `Session closed: ${data?.reason || 'unknown reason'}`);
+        });
+        socket.on('meal_context_synced', data => {
+          log('meal_context_synced', JSON.stringify(data));
+          setStatus('meal context synced to live session', 'ok');
+          appendChat('system', 'Meal context synced to live conversation.');
+          updateButtons();
+        });
+        updateButtons();
+        return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('socket connect timeout')), 1e4);
+          socket.once('connect', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          socket.once('connect_error', error => {
+            clearTimeout(timeout);
+            reject(error instanceof Error ? error : new Error(String(error)));
+          });
+        });
+      }
+      function disconnectSocket() {
+        if (socket) {
+          try {
+            socket.disconnect();
+          } catch (_) {}
+        }
+        socket = null;
+        if (mealContextSyncTimer) {
+          clearTimeout(mealContextSyncTimer);
+          mealContextSyncTimer = null;
+        }
+        stopMic(false);
+        stopWebcam();
+        if (playbackAudioContext) {
+          try {
+            playbackAudioContext.close();
+          } catch (_) {}
+          playbackAudioContext = null;
+          playbackCursorSec = 0;
+        }
+        setStatus('socket disconnected', 'warn');
+        updateButtons();
+      }
+      async function startMic() {
+        if (!socket || !socket.connected) {
+          setStatus('socket not connected', 'bad');
+          return;
+        }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          sourceNode = audioContext.createMediaStreamSource(stream);
+          processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+          processorNode.onaudioprocess = event => {
+            if (!captureActive) return;
+            const input = event.inputBuffer.getChannelData(0),
+              copy = new Float32Array(input.length);
+            copy.set(input);
+            emitPcmChunk(copy, audioContext.sampleRate);
+          };
+          sourceNode.connect(processorNode);
+          processorNode.connect(audioContext.destination);
+          captureActive = true;
+          log(
+            'mic_start',
+            `audio/pcm;rate=${TARGET_SAMPLE_RATE} (source=${audioContext.sampleRate})`,
+          );
+          setStatus('recording...', 'ok');
+          updateButtons();
+        } catch (error) {
+          log('mic_start_error', String(error));
+          setStatus('cannot access microphone', 'bad');
+          stopMic(false);
+        }
+      }
+      function stopMic(sendEndTurn) {
+        captureActive = false;
+        if (processorNode) {
+          try {
+            processorNode.disconnect();
+          } catch (_) {}
+          processorNode.onaudioprocess = null;
+        }
+        processorNode = null;
+        if (sourceNode) {
+          try {
+            sourceNode.disconnect();
+          } catch (_) {}
+        }
+        sourceNode = null;
+        if (audioContext) {
+          try {
+            audioContext.close();
+          } catch (_) {}
+        }
+        audioContext = null;
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        stream = null;
+        if (sendEndTurn && socket?.connected) {
+          socket.emit('end_turn');
+          log('emit_end_turn');
+        }
+        setStatus('connected, mic stopped', 'warn');
+        updateButtons();
+      }
+      function toggleAudioPlayback() {
+        autoPlayModelAudio = !autoPlayModelAudio;
+        if (!autoPlayModelAudio && playbackAudioContext) {
+          try {
+            playbackAudioContext.close();
+          } catch (_) {}
+          playbackAudioContext = null;
+          playbackCursorSec = 0;
+        }
+        log('toggle_audio_playback', autoPlayModelAudio ? 'ON' : 'OFF');
+        updateButtons();
+      }
+      async function testMicPlayback() {
+        if (captureActive) {
+          setStatus('stop live mic before playback test', 'bad');
+          return;
+        }
+        if (micTestInProgress) return;
+        const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'],
+          mimeType = preferred.find(type => MediaRecorder.isTypeSupported(type)) || '';
+        let testStream = null,
+          recorder = null;
+        const chunks = [];
+        try {
+          micTestInProgress = true;
+          updateButtons();
+          setStatus('testing mic: recording 3 seconds...', 'warn');
+          testStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          recorder = mimeType
+            ? new MediaRecorder(testStream, { mimeType })
+            : new MediaRecorder(testStream);
+          recorder.ondataavailable = event => {
+            if (event.data && event.data.size > 0) chunks.push(event.data);
+          };
+          recorder.onerror = event => {
+            log('mic_playback_error', JSON.stringify(event.error || {}));
+            setStatus('mic playback recorder error', 'bad');
+          };
+          recorder.start();
+          log('mic_playback_record_start', recorder.mimeType || 'unknown');
+          await new Promise(resolve => setTimeout(resolve, 3e3));
+          recorder.stop();
+          await new Promise(resolve => {
+            recorder.onstop = () => resolve();
+          });
+          const blobType = recorder.mimeType || mimeType || 'audio/webm',
+            blob = new Blob(chunks, { type: blobType });
+          if (!blob.size) throw new Error('Empty recording');
+          const url = URL.createObjectURL(blob);
+          el.micPlayback.src = url;
+          el.micPlayback.play().catch(() => {});
+          log('mic_playback_ready', `${blobType} / ${blob.size} bytes`);
+          setStatus('mic playback ready (playing)', 'ok');
+        } catch (error) {
+          log('mic_playback_exception', String(error));
+          setStatus('mic playback failed', 'bad');
+        } finally {
+          if (testStream) testStream.getTracks().forEach(track => track.stop());
+          micTestInProgress = false;
+          updateButtons();
+        }
+      }
+
+      el.modeTalkBtn.addEventListener('click', () => setMode('talk'));
+      el.modeCaptureBtn.addEventListener('click', () => setMode('capture'));
+      el.registerBtn.addEventListener('click', register);
+      el.loginBtn.addEventListener('click', login);
+      el.connectBtn.addEventListener('click', () =>
+        connectSocket().catch(error => log('connect_socket_error', String(error))),
+      );
+      el.disconnectBtn.addEventListener('click', disconnectSocket);
+      el.runFlowBtn.addEventListener('click', runFullFlow);
+      el.resetContextBtn.addEventListener('click', () =>
+        resetContext().catch(error => log('reset_context_exception', String(error))),
+      );
+      el.sendTextBtn.addEventListener('click', sendTextInput);
+      el.startBtn.addEventListener('click', startMic);
+      el.stopBtn.addEventListener('click', () => stopMic(true));
+      el.micPlaybackBtn.addEventListener('click', testMicPlayback);
+      el.toggleAudioBtn.addEventListener('click', toggleAudioPlayback);
+      el.startCamBtn.addEventListener('click', async () => {
+        try {
+          await startWebcam();
+          setStatus('webcam ready', 'ok');
+        } catch (error) {
+          log('webcam_start_error', String(error));
+          setStatus('cannot start webcam', 'bad');
+        } finally {
+          updateButtons();
+        }
+      });
+      el.stopCamBtn.addEventListener('click', () => {
+        stopWebcam();
+        updateButtons();
+      });
+      el.captureSuggestBtn.addEventListener('click', async () => {
+        try {
+          mealFlowInProgress = true;
+          updateButtons();
+          setStatus('capturing and suggesting...', 'warn');
+          await suggestDishesFromWebcam();
+          if (socket?.connected) await syncMealContextToLive();
+          setStatus('suggest-dishes completed', 'ok');
+        } catch (error) {
+          log('meal_suggest_error', String(error));
+          setStatus('suggest-dishes failed', 'bad');
+        } finally {
+          mealFlowInProgress = false;
+          updateButtons();
+        }
+      });
+      el.syncContextBtn.addEventListener('click', async () => {
+        try {
+          mealFlowInProgress = true;
+          updateButtons();
+          setStatus('syncing meal context...', 'warn');
+          await syncMealContextToLive();
+          setStatus('meal context synced', 'ok');
+        } catch (error) {
+          log('meal_context_sync_error', String(error));
+          setStatus('meal context sync failed', 'bad');
+        } finally {
+          mealFlowInProgress = false;
+          updateButtons();
+        }
+      });
+      el.generateRecipeBtn.addEventListener('click', async () => {
+        try {
+          mealFlowInProgress = true;
+          updateButtons();
+          setStatus('generating recipe...', 'warn');
+          await generateRecipeFromSelectedDish();
+          await syncMealContextToLive(el.dishSelect.value);
+          setStatus('generate-recipe completed', 'ok');
+        } catch (error) {
+          log('meal_generate_error', String(error));
+          setStatus('generate-recipe failed', 'bad');
+        } finally {
+          mealFlowInProgress = false;
+          updateButtons();
+        }
+      });
+      el.runMealFlowBtn.addEventListener('click', runMealWebcamFlow);
+      el.dishSelect.addEventListener('change', scheduleAutoMealContextSync);
+      el.mealPreferences.addEventListener('input', scheduleAutoMealContextSync);
+      el.clearBtn.addEventListener('click', () => {
+        el.logs.textContent = '';
+        resetChatFeed();
+      });
+      el.textInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          sendTextInput();
+        }
+      });
+      el.token.addEventListener('input', updateButtons);
+      window.addEventListener('beforeunload', () => {
+        stopWebcam();
+        stopMic(false);
+        disconnectSocket();
+      });
+      setRaw(el.suggestRaw, '');
+      setRaw(el.generateRaw, '');
+      setDishOptions([]);
+      setMode('talk');
+      setStatus('idle', 'warn');
+      appendChat('system', 'Ready. Tap Connect, then start talking or switch to Capture mode.');
+      updateButtons();
+    </script>
+  </body>
 </html>

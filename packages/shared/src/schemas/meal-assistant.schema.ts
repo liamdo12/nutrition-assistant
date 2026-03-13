@@ -59,6 +59,38 @@ export const mealGenerateRecipeResponseSchema = z.object({
   expiresAt: z.string().datetime(),
 });
 
+export const mealDetectedFoodItemSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  quantity: z.string().trim().min(1).max(120).optional(),
+});
+
+export const mealTextAnalysisSchema = z.object({
+  detected: z.object({
+    foods: z.array(mealDetectedFoodItemSchema).max(30).default([]),
+    nutritionGoals: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+    dietaryConstraints: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+    mealTime: z.string().trim().min(1).max(80).optional(),
+  }),
+  missing: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
+  assistantReply: z.string().trim().min(1).max(2000),
+});
+
+export const mealAnalyzeTextRequestSchema = z.object({
+  text: z.string().trim().min(1).max(4000),
+  locale: z.string().trim().min(2).max(20).default('en'),
+  constraints: z.string().trim().min(1).max(1000).optional(),
+});
+
+export const mealAnalyzeTextResponseSchema = z.object({
+  analysis: mealTextAnalysisSchema,
+  modelInfo: mealModelInfoSchema,
+});
+
+export const mealContextResetResponseSchema = z.object({
+  reset: z.literal(true),
+  resetAt: z.string().datetime(),
+});
+
 export const mealSaveRequestSchema = z.object({
   analysisToken: z.string().min(20),
   recipeToken: z.string().min(20),
@@ -163,6 +195,10 @@ export type MealSuggestDishesRequest = z.infer<typeof mealSuggestDishesRequestSc
 export type MealSuggestDishesResponse = z.infer<typeof mealSuggestDishesResponseSchema>;
 export type MealGenerateRecipeRequest = z.infer<typeof mealGenerateRecipeRequestSchema>;
 export type MealGenerateRecipeResponse = z.infer<typeof mealGenerateRecipeResponseSchema>;
+export type MealTextAnalysis = z.infer<typeof mealTextAnalysisSchema>;
+export type MealAnalyzeTextRequest = z.infer<typeof mealAnalyzeTextRequestSchema>;
+export type MealAnalyzeTextResponse = z.infer<typeof mealAnalyzeTextResponseSchema>;
+export type MealContextResetResponse = z.infer<typeof mealContextResetResponseSchema>;
 export type MealSaveRequest = z.infer<typeof mealSaveRequestSchema>;
 export type MealSaveResponse = z.infer<typeof mealSaveResponseSchema>;
 export type MealHistoryQuery = z.infer<typeof mealHistoryQuerySchema>;

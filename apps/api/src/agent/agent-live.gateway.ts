@@ -27,10 +27,12 @@ import { DomainEventsService } from '../events/domain-events.service';
 import { AuthRepository } from '../auth/auth.repository';
 import { GeminiLiveSession, GeminiService } from '../meal-assistant/gemini.service';
 import { MealDraftTokenService } from '../meal-assistant/meal-draft-token.service';
+import { SharedMealContextService } from '../meal-assistant/shared-meal-context.service';
 
 interface LiveSocketData {
   userId: string;
   session: GeminiLiveSession;
+  contextVersion: number;
 }
 
 @WebSocketGateway({
@@ -52,6 +54,7 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
     private readonly domainEvents: DomainEventsService,
     private readonly geminiService: GeminiService,
     private readonly mealDraftTokenService: MealDraftTokenService,
+    private readonly sharedMealContextService: SharedMealContextService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -68,51 +71,7 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
         throw new UnauthorizedException('Authentication token is no longer valid');
       }
 
-      const liveSession = this.geminiService.openLiveAudioSession(
-        {
-          locale: 'en',
-          userId: user.id,
-        },
-        {
-          onTranscriptPartial: text => {
-            const data = parseWithSchema(mealLiveServerTranscriptPartialSchema, { text });
-            client.emit('transcript_partial', data);
-          },
-          onTranscriptFinal: text => {
-            const data = parseWithSchema(mealLiveServerTranscriptFinalSchema, { text });
-            client.emit('transcript_final', data);
-          },
-          onModelText: text => {
-            const data = parseWithSchema(mealLiveServerModelTextSchema, { text });
-            client.emit('model_text', data);
-          },
-          onModelAudioChunk: (chunkBase64, mimeType) => {
-            const data = parseWithSchema(mealLiveServerModelAudioChunkSchema, {
-              chunkBase64,
-              mimeType,
-            });
-            client.emit('model_audio_chunk', data);
-          },
-          onError: (code, message) => {
-            const data = parseWithSchema(mealLiveServerErrorSchema, { code, message });
-            client.emit('error', data);
-            this.domainEvents.publish({
-              type: 'agent.live.error',
-              userId: user.id,
-              payload: { code },
-            });
-          },
-          onClosed: reason => {
-            const data = parseWithSchema(mealLiveServerSessionClosedSchema, { reason });
-            client.emit('session_closed', data);
-          },
-        },
-      );
-
-      client.data.live = {
-        userId: user.id,
-        session: liveSession,
-      } satisfies LiveSocketData;
+      client.data.live = this.createLiveSocketData(client, user.id);
 
       this.domainEvents.publish({
         type: 'agent.live.connected',
@@ -145,19 +104,24 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   @SubscribeMessage('text_input')
   async onTextInput(@ConnectedSocket() client: Socket, @MessageBody() rawBody: unknown): Promise<void> {
-    const data = client.data.live as LiveSocketData | undefined;
+    const data = await this.ensureFreshSession(client);
     if (!data) {
       client.disconnect(true);
       return;
     }
 
     const body = parseWithSchema(mealLiveClientTextInputSchema, rawBody);
-    await data.session.sendTextInput(body.text);
+    this.sharedMealContextService.mergeTextTurn(data.userId, 'user', body.text);
+    const sharedContext = this.sharedMealContextService.buildPromptContext(data.userId);
+    const composedInput = sharedContext
+      ? `${sharedContext}\n\nLatest user message:\n${body.text}`
+      : body.text;
+    await data.session.sendTextInput(composedInput);
   }
 
   @SubscribeMessage('audio_chunk')
   async onAudioChunk(@ConnectedSocket() client: Socket, @MessageBody() rawBody: unknown): Promise<void> {
-    const data = client.data.live as LiveSocketData | undefined;
+    const data = await this.ensureFreshSession(client);
     if (!data) {
       client.disconnect(true);
       return;
@@ -169,7 +133,7 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   @SubscribeMessage('end_turn')
   async onEndTurn(@ConnectedSocket() client: Socket): Promise<void> {
-    const data = client.data.live as LiveSocketData | undefined;
+    const data = await this.ensureFreshSession(client);
     if (!data) {
       client.disconnect(true);
       return;
@@ -180,7 +144,7 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   @SubscribeMessage('meal_context')
   async onMealContext(@ConnectedSocket() client: Socket, @MessageBody() rawBody: unknown): Promise<void> {
-    const data = client.data.live as LiveSocketData | undefined;
+    const data = await this.ensureFreshSession(client);
     if (!data) {
       client.disconnect(true);
       return;
@@ -192,9 +156,21 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
       ? analysisPayload.data.suggestions.find(dish => dish.id === body.selectedDishId)
       : undefined;
 
+    this.sharedMealContextService.mergeImageAnalysis(data.userId, {
+      locale: analysisPayload.data.locale,
+      constraints: analysisPayload.data.constraints,
+      suggestions: analysisPayload.data.suggestions,
+    });
+    this.sharedMealContextService.mergeMealSelection(data.userId, {
+      selectedDishId: selectedDish?.id ?? null,
+      selectedDishName: selectedDish?.name ?? null,
+      preferences: body.preferences,
+    });
+
     const lines = [
       'Conversation context update for meal assistant.',
       'Use this context for all next user turns unless user asks to reset topic.',
+      this.sharedMealContextService.buildPromptContext(data.userId),
       `Locale: ${analysisPayload.data.locale}`,
       `Constraints: ${analysisPayload.data.constraints ?? 'none'}`,
       'Dish suggestions:',
@@ -206,7 +182,7 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
       'Acknowledge this context in one short sentence.',
     ];
 
-    await data.session.sendTextInput(lines.join('\n'));
+    await data.session.sendTextInput(lines.filter(Boolean).join('\n'));
 
     const synced = parseWithSchema(mealLiveServerContextSyncedSchema, {
       analysisJti: analysisPayload.jti,
@@ -236,5 +212,74 @@ export class AgentLiveGateway implements OnGatewayConnection, OnGatewayDisconnec
       (client.handshake.headers.authorization as string | undefined) ?? undefined,
     );
     return headerToken;
+  }
+
+  private createLiveSocketData(client: Socket, userId: string): LiveSocketData {
+    const liveSession = this.geminiService.openLiveAudioSession(
+      {
+        locale: 'en',
+        userId,
+        sharedContext: this.sharedMealContextService.buildPromptContext(userId),
+      },
+      {
+        onTranscriptPartial: text => {
+          const data = parseWithSchema(mealLiveServerTranscriptPartialSchema, { text });
+          client.emit('transcript_partial', data);
+        },
+        onTranscriptFinal: text => {
+          this.sharedMealContextService.mergeTextTurn(userId, 'user', text);
+          const data = parseWithSchema(mealLiveServerTranscriptFinalSchema, { text });
+          client.emit('transcript_final', data);
+        },
+        onModelText: text => {
+          this.sharedMealContextService.mergeTextTurn(userId, 'model', text);
+          const data = parseWithSchema(mealLiveServerModelTextSchema, { text });
+          client.emit('model_text', data);
+        },
+        onModelAudioChunk: (chunkBase64, mimeType) => {
+          const data = parseWithSchema(mealLiveServerModelAudioChunkSchema, {
+            chunkBase64,
+            mimeType,
+          });
+          client.emit('model_audio_chunk', data);
+        },
+        onError: (code, message) => {
+          const data = parseWithSchema(mealLiveServerErrorSchema, { code, message });
+          client.emit('error', data);
+          this.domainEvents.publish({
+            type: 'agent.live.error',
+            userId,
+            payload: { code },
+          });
+        },
+        onClosed: reason => {
+          const data = parseWithSchema(mealLiveServerSessionClosedSchema, { reason });
+          client.emit('session_closed', data);
+        },
+      },
+    );
+
+    return {
+      userId,
+      session: liveSession,
+      contextVersion: this.sharedMealContextService.getVersion(userId),
+    };
+  }
+
+  private async ensureFreshSession(client: Socket): Promise<LiveSocketData | undefined> {
+    const current = client.data.live as LiveSocketData | undefined;
+    if (!current) {
+      return undefined;
+    }
+
+    const latestVersion = this.sharedMealContextService.getVersion(current.userId);
+    if (current.contextVersion === latestVersion) {
+      return current;
+    }
+
+    await current.session.close('context_reset');
+    const refreshed = this.createLiveSocketData(client, current.userId);
+    client.data.live = refreshed;
+    return refreshed;
   }
 }
