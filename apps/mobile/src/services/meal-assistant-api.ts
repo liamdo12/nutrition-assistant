@@ -1,11 +1,11 @@
-import { MealSuggestDishesResponse } from '@nutrition/shared';
+import { MealAnalyzeImageResponse } from '@nutrition/shared';
 import { apiClient } from './api-client';
 
-/** Send a captured photo to the suggest-dishes endpoint and return 5 dish suggestions */
-export async function suggestDishes(
+/** Send a captured photo to the suggest-dishes endpoint and return food analysis */
+export async function analyzeFood(
   imageUri: string,
   signal?: AbortSignal,
-): Promise<MealSuggestDishesResponse> {
+): Promise<MealAnalyzeImageResponse> {
   const ext = imageUri.split('.').pop()?.toLowerCase() ?? 'jpg';
   const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
 
@@ -16,8 +16,8 @@ export async function suggestDishes(
     name: `photo.${ext}`,
   } as unknown as Blob);
 
-  const { data } = await apiClient.post<MealSuggestDishesResponse>(
-    '/meal-assistant/suggest-dishes',
+  const { data } = await apiClient.post<MealAnalyzeImageResponse>(
+    '/api/v1/meal-assistant/suggest-dishes',
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' }, signal },
   );

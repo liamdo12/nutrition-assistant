@@ -8,6 +8,8 @@ interface SharedMealContextState {
   selectedDishId?: string | null;
   selectedDishName?: string | null;
   suggestions: MealDishSuggestion[];
+  /** Detected food items from image analysis */
+  detectedFoods: string[];
   nutritionGoals: string[];
   dietaryConstraints: string[];
   recentUserTexts: string[];
@@ -25,13 +27,24 @@ export class SharedMealContextService {
     input: {
       locale: string;
       constraints?: string;
-      suggestions: MealDishSuggestion[];
+      analysis: MealTextAnalysis;
+      suggestions?: MealDishSuggestion[];
     },
   ): void {
     const state = this.getOrCreateState(userId);
     state.locale = input.locale;
     state.constraints = input.constraints ?? state.constraints;
-    state.suggestions = input.suggestions.slice(0, 5);
+
+    // Merge from analysis (new flow)
+    const foodNames = input.analysis.detected.foods.map(f => f.name);
+    this.addUnique(state.detectedFoods, foodNames, 30);
+    this.addUnique(state.nutritionGoals, input.analysis.detected.nutritionGoals, 20);
+    this.addUnique(state.dietaryConstraints, input.analysis.detected.dietaryConstraints, 20);
+
+    // Backward compat: merge suggestions if provided
+    if (input.suggestions) {
+      state.suggestions = input.suggestions.slice(0, 5);
+    }
 
     if (input.constraints) {
       this.addUnique(state.dietaryConstraints, [input.constraints], 20);
@@ -108,6 +121,9 @@ export class SharedMealContextService {
     if (state.dietaryConstraints.length > 0) {
       lines.push(`- Dietary constraints: ${state.dietaryConstraints.join('; ')}`);
     }
+    if (state.detectedFoods.length > 0) {
+      lines.push(`- Detected foods: ${state.detectedFoods.slice(0, 10).join(', ')}`);
+    }
     if (state.selectedDishName) {
       lines.push(`- Selected dish: ${state.selectedDishName}`);
     }
@@ -144,6 +160,7 @@ export class SharedMealContextService {
 
     const initial: SharedMealContextState = {
       suggestions: [],
+      detectedFoods: [],
       nutritionGoals: [],
       dietaryConstraints: [],
       recentUserTexts: [],

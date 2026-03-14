@@ -1,17 +1,21 @@
 import { Pressable, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+type VoiceState = 'idle' | 'recording' | 'muted';
+
 interface VoiceActionBarProps {
-  isRecording: boolean;
+  voiceState: VoiceState;
   onMicPress: () => void;
   onClosePress: () => void;
 }
 
 export function VoiceActionBar({
-  isRecording,
+  voiceState,
   onMicPress,
   onClosePress,
 }: VoiceActionBarProps) {
+  const isRecording = voiceState === 'recording';
+
   return (
     <View style={styles.container}>
       {/* Mic button — centered */}

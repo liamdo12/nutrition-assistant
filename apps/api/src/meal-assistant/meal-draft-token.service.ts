@@ -3,8 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import {
   MealDishSuggestion,
+  MealTextAnalysis,
   mealDishSuggestionSchema,
   mealGeneratedRecipeSchema,
+  mealNutritionEstimateSchema,
+  mealTextAnalysisSchema,
 } from '@nutrition/shared';
 import { z } from 'zod';
 import { AppConfig } from '../config/app.config';
@@ -19,7 +22,11 @@ const analysisTokenPayloadSchema = z.object({
     inputImageUrl: z.string().url().optional(),
     locale: z.string().min(2).max(20),
     constraints: z.string().max(1000).optional(),
-    suggestions: z.array(mealDishSuggestionSchema).length(5),
+    /** New: image analysis stores detected foods + assistant reply */
+    analysis: mealTextAnalysisSchema.optional(),
+    estimatedNutrition: mealNutritionEstimateSchema.optional(),
+    /** @deprecated Kept for backward compat with older tokens in-flight */
+    suggestions: z.array(mealDishSuggestionSchema).optional(),
     modelName: z.string().min(1).max(120),
   }),
 });
@@ -46,7 +53,10 @@ interface SignAnalysisTokenInput {
   readonly inputImageUrl?: string;
   readonly locale: string;
   readonly constraints?: string;
-  readonly suggestions: MealDishSuggestion[];
+  readonly analysis?: MealTextAnalysis;
+  readonly estimatedNutrition?: z.infer<typeof mealNutritionEstimateSchema>;
+  /** @deprecated Use analysis instead */
+  readonly suggestions?: MealDishSuggestion[];
   readonly modelName: string;
   readonly ttlSeconds?: number;
 }
@@ -84,6 +94,8 @@ export class MealDraftTokenService {
         inputImageUrl: input.inputImageUrl,
         locale: input.locale,
         constraints: input.constraints,
+        analysis: input.analysis,
+        estimatedNutrition: input.estimatedNutrition,
         suggestions: input.suggestions,
         modelName: input.modelName,
       },

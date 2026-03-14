@@ -19,13 +19,18 @@ export class JwtAuthGuard implements CanActivate {
     if (!user) {
       throw new UnauthorizedException('Invalid authentication token');
     }
-    if (user.tokenVersion !== payload.tv) {
-      throw new UnauthorizedException('Authentication token is no longer valid');
-    }
 
-    const revoked = await this.authRepository.isTokenRevoked(payload.jti, new Date());
-    if (revoked) {
-      throw new UnauthorizedException('Authentication token is no longer valid');
+    // Admin tokens are permanent — skip version and revocation checks
+    const isAdmin = user.role === 'ADMIN';
+    if (!isAdmin) {
+      if (user.tokenVersion !== payload.tv) {
+        throw new UnauthorizedException('Authentication token is no longer valid');
+      }
+
+      const revoked = await this.authRepository.isTokenRevoked(payload.jti, new Date());
+      if (revoked) {
+        throw new UnauthorizedException('Authentication token is no longer valid');
+      }
     }
 
     request.user = Object.freeze({

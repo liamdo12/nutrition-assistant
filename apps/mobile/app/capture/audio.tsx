@@ -36,8 +36,8 @@ export default function AudioRecordScreen() {
       currentAiTextRef.current += text;
       setStreamingText(currentAiTextRef.current);
     },
-    onTranscriptFinal: () => {
-      // Finalize current AI message and start fresh for the next turn
+    onModelTurnComplete: () => {
+      // AI finished responding — finalize current message as a separate entry
       if (currentAiTextRef.current.trim()) {
         setAiMessages(prev => [...prev, currentAiTextRef.current.trim()]);
       }
@@ -120,10 +120,15 @@ export default function AudioRecordScreen() {
 
   const handleClose = async () => {
     stopTimer();
-    await recorder.stopRecording();
+    // Stop recorder first and wait for it to finish before disconnecting/navigating
+    try {
+      await recorder.stopRecording();
+    } catch {
+      // Recording may already be stopped
+    }
     player.stop();
     socket.disconnect();
-    router.back();
+    router.replace('/capture/photo');
   };
 
   // Cleanup timer on unmount (back gesture bypasses handleClose)

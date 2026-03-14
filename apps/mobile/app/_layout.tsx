@@ -15,6 +15,10 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="capture/food-analysis-result"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="capture/audio"
           options={{ headerShown: false, presentation: 'fullScreenModal' }}
         />

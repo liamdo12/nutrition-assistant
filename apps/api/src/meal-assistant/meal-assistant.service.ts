@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   MealDishSuggestion,
+  mealAnalyzeImageResponseSchema,
   mealAnalyzeTextRequestSchema,
   mealAnalyzeTextResponseSchema,
   mealContextResetResponseSchema,
@@ -65,19 +67,31 @@ export class MealAssistantService {
     });
 
     try {
-      const suggestResult = await this.geminiService.suggestDishesFromImage({
-        imageBase64: input.imageBase64,
-        imageMimeType: input.imageMimeType,
-        inputImageUrl,
-        locale: input.locale,
-        constraints: input.constraints,
-        sharedContext: this.sharedMealContextService.buildPromptContext(user.id),
-      });
+      let analyzeResult: Awaited<ReturnType<typeof this.geminiService.analyzeFoodFromImage>>;
+      try {
+        analyzeResult = await this.geminiService.analyzeFoodFromImage({
+          imageBase64: input.imageBase64,
+          imageMimeType: input.imageMimeType,
+          inputImageUrl,
+          locale: input.locale,
+          constraints: input.constraints,
+        });
+      } catch (aiError) {
+        const isBadGateway =
+          aiError instanceof BadGatewayException ||
+          (aiError instanceof Error && aiError.message.includes('invalid structured output'));
+        if (isBadGateway) {
+          throw new BadRequestException(
+            'Could not analyze food from this photo. Please try a clearer image with visible food items.',
+          );
+        }
+        throw aiError;
+      }
 
       this.sharedMealContextService.mergeImageAnalysis(user.id, {
         locale: input.locale,
         constraints: input.constraints,
-        suggestions: suggestResult.suggestions,
+        analysis: analyzeResult.analysis,
       });
 
       const signed = this.draftTokenService.signAnalysisToken({
@@ -85,8 +99,9 @@ export class MealAssistantService {
         inputImageUrl,
         locale: input.locale,
         constraints: input.constraints,
-        suggestions: suggestResult.suggestions,
-        modelName: suggestResult.modelName,
+        analysis: analyzeResult.analysis,
+        estimatedNutrition: analyzeResult.estimatedNutrition,
+        modelName: analyzeResult.modelName,
       });
 
       this.domainEvents.publish({
@@ -94,16 +109,17 @@ export class MealAssistantService {
         userId: user.id,
         payload: {
           analysisJti: signed.payload.jti,
-          suggestionsCount: suggestResult.suggestions.length,
+          detectedFoods: analyzeResult.analysis.detected.foods.length,
         },
       });
 
-      return parseWithSchema(mealSuggestDishesResponseSchema, {
-        suggestions: suggestResult.suggestions,
+      return parseWithSchema(mealAnalyzeImageResponseSchema, {
+        analysis: analyzeResult.analysis,
+        estimatedNutrition: analyzeResult.estimatedNutrition,
         analysisToken: signed.token,
         modelInfo: {
           provider: 'gemini',
-          model: suggestResult.modelName,
+          model: analyzeResult.modelName,
         },
         expiresAt: signed.expiresAt,
       });
@@ -177,7 +193,8 @@ export class MealAssistantService {
   async generateRecipe(user: AuthenticatedUser, rawInput: unknown) {
     const input = parseWithSchema(mealGenerateRecipeRequestSchema, rawInput);
     const analysisPayload = this.draftTokenService.verifyAnalysisToken(input.analysisToken, user.id);
-    const selectedDish = analysisPayload.data.suggestions.find(dish => dish.id === input.selectedDishId);
+    const suggestions = analysisPayload.data.suggestions ?? [];
+    const selectedDish = suggestions.find(dish => dish.id === input.selectedDishId);
 
     if (!selectedDish) {
       throw new UnauthorizedException('selectedDishId is not part of the signed analysis token');
@@ -196,7 +213,7 @@ export class MealAssistantService {
       const generated = await this.geminiService.generateRecipe({
         locale: analysisPayload.data.locale,
         selectedDish,
-        suggestions: analysisPayload.data.suggestions,
+        suggestions,
         servings: input.servings,
         preferences: input.preferences,
         sharedContext: this.sharedMealContextService.buildPromptContext(user.id),
@@ -257,7 +274,7 @@ export class MealAssistantService {
     }
 
     const selectedDish = this.requireSelectedDish(
-      analysisPayload.data.suggestions,
+      analysisPayload.data.suggestions ?? [],
       recipePayload.data.selectedDishId,
     );
     const inputImageUrl = analysisPayload.data.inputImageUrl
@@ -290,7 +307,7 @@ export class MealAssistantService {
           recipeTitle: recipe.title,
           selectedDishName: selectedDish.name,
           selectedDishReason: selectedDish.reason,
-          suggestionsJson: analysisPayload.data.suggestions as unknown as Prisma.InputJsonValue,
+          suggestionsJson: (analysisPayload.data.suggestions ?? []) as unknown as Prisma.InputJsonValue,
           ingredientsJson: recipe.ingredients as unknown as Prisma.InputJsonValue,
           stepsJson: recipe.steps as unknown as Prisma.InputJsonValue,
           notesJson: recipe.notes as unknown as Prisma.InputJsonValue,

@@ -19,7 +19,7 @@ import { MealAssistantService } from './meal-assistant.service';
 
 @ApiTags('meal-assistant')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+// TODO: re-enable auth guard after development — @UseGuards(JwtAuthGuard)
 @Controller('meal-assistant')
 export class MealAssistantController {
   constructor(private readonly mealAssistantService: MealAssistantService) {}

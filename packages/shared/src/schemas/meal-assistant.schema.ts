@@ -86,6 +86,15 @@ export const mealAnalyzeTextResponseSchema = z.object({
   modelInfo: mealModelInfoSchema,
 });
 
+/** Response schema for image-based food analysis (replaces suggest-dishes for photo capture) */
+export const mealAnalyzeImageResponseSchema = z.object({
+  analysis: mealTextAnalysisSchema,
+  estimatedNutrition: mealNutritionEstimateSchema.optional(),
+  analysisToken: z.string().min(20),
+  modelInfo: mealModelInfoSchema,
+  expiresAt: z.string().datetime(),
+});
+
 export const mealContextResetResponseSchema = z.object({
   reset: z.literal(true),
   resetAt: z.string().datetime(),
@@ -133,7 +142,7 @@ export const mealHistoryDetailResponseSchema = z.object({
   cookedImageUrl: z.string().url(),
   selectedDishName: z.string().trim().min(1),
   selectedDishReason: z.string().trim().min(1),
-  suggestions: z.array(mealDishSuggestionSchema).length(5),
+  suggestions: z.array(mealDishSuggestionSchema).max(10),
   recipe: mealGeneratedRecipeSchema,
   rating: z.number().int().min(1).max(5),
   note: z.string().trim().min(1).max(1000).nullable(),
@@ -198,6 +207,7 @@ export type MealGenerateRecipeResponse = z.infer<typeof mealGenerateRecipeRespon
 export type MealTextAnalysis = z.infer<typeof mealTextAnalysisSchema>;
 export type MealAnalyzeTextRequest = z.infer<typeof mealAnalyzeTextRequestSchema>;
 export type MealAnalyzeTextResponse = z.infer<typeof mealAnalyzeTextResponseSchema>;
+export type MealAnalyzeImageResponse = z.infer<typeof mealAnalyzeImageResponseSchema>;
 export type MealContextResetResponse = z.infer<typeof mealContextResetResponseSchema>;
 export type MealSaveRequest = z.infer<typeof mealSaveRequestSchema>;
 export type MealSaveResponse = z.infer<typeof mealSaveResponseSchema>;

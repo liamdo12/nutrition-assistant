@@ -3,17 +3,15 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
-export type CaptureMode = 'camera' | 'chat' | 'voice';
+export type CaptureMode = 'camera' | 'voice';
 
 const MODES: { key: CaptureMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'camera', label: 'Camera', icon: 'camera-outline' },
-  { key: 'chat', label: 'Chat', icon: 'chatbubble-outline' },
   { key: 'voice', label: 'Voice', icon: 'mic-outline' },
 ];
 
 const ROUTE_MAP: Record<CaptureMode, string> = {
   camera: '/capture/photo',
-  chat: '/capture/photo', // TODO: replace with chat route when available
   voice: '/capture/audio',
 };
 
@@ -26,10 +24,6 @@ export function ModeTogglePill({ activeMode }: ModeTogglePillProps) {
 
   const handlePress = (mode: CaptureMode) => {
     if (mode === activeMode) return;
-    if (mode === 'chat') {
-      // Chat not yet implemented
-      return;
-    }
     router.replace(ROUTE_MAP[mode] as never);
   };
 

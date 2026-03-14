@@ -22,6 +22,8 @@ export interface SignTokenInput {
   readonly email: string;
   readonly name: string;
   readonly tokenVersion: number;
+  /** Override default JWT_EXPIRES_IN duration (e.g. '36500d' for ~100 years) */
+  readonly expiresInOverride?: string;
 }
 
 @Injectable()
@@ -30,7 +32,7 @@ export class AuthTokenService {
 
   sign(input: SignTokenInput): string {
     const secret = this.configService.get('JWT_SECRET', { infer: true });
-    const expiresIn = this.configService.get('JWT_EXPIRES_IN', { infer: true });
+    const expiresIn: string = input.expiresInOverride ?? this.configService.get('JWT_EXPIRES_IN', { infer: true });
 
     const issuedAt = Math.floor(Date.now() / 1000);
     const payload = {

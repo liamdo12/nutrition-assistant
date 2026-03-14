@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   BadRequestException,
   Injectable,
+  Logger,
   RequestTimeoutException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -12,6 +13,7 @@ import {
   MealTextAnalysis,
   mealDishSuggestionSchema,
   mealGeneratedRecipeSchema,
+  mealNutritionEstimateSchema,
   mealTextAnalysisSchema,
 } from '@nutrition/shared';
 import { z } from 'zod';
@@ -53,6 +55,7 @@ interface LiveSessionCallbacks {
   readonly onTranscriptFinal: (text: string) => void;
   readonly onModelText: (text: string) => void;
   readonly onModelAudioChunk: (chunkBase64: string, mimeType: string) => void;
+  readonly onModelTurnComplete: () => void;
   readonly onError: (code: string, message: string) => void;
   readonly onClosed: (reason: string) => void;
 }
@@ -70,6 +73,12 @@ const suggestOutputSchema = z.object({
   suggestions: z.array(mealDishSuggestionSchema).min(1).max(10),
 });
 
+/** Output schema for image-based food analysis (analyze-food prompt) */
+const analyzeImageOutputSchema = z.object({
+  analysis: mealTextAnalysisSchema,
+  estimatedNutrition: mealNutritionEstimateSchema.optional(),
+});
+
 const recipeOutputSchema = z.object({
   recipe: mealGeneratedRecipeSchema,
 });
@@ -80,8 +89,65 @@ const textAnalysisOutputSchema = z.object({
 
 @Injectable()
 export class GeminiService {
+  private readonly logger = new Logger(GeminiService.name);
+
   constructor(private readonly configService: ConfigService<AppConfig, true>) {}
 
+  /** Analyze food in a photo — returns detected foods, nutrition estimate, and assistant reply */
+  async analyzeFoodFromImage(
+    input: SuggestDishesInput,
+  ): Promise<{ analysis: MealTextAnalysis; estimatedNutrition?: z.infer<typeof mealNutritionEstimateSchema>; modelName: string }> {
+    const modelName = this.configService.get('GEMINI_LIVE_MODEL', { infer: true });
+
+    if (!this.hasApiKey()) {
+      return {
+        analysis: this.buildFallbackImageAnalysis(input),
+        estimatedNutrition: { calories: 450, protein: 25, carbs: 42, fats: 18 },
+        modelName,
+      };
+    }
+
+    const image = await this.resolveInlineImage(input);
+    const prompt =
+      `You are a nutrition assistant. Analyze ONLY the food visible in this image.\n` +
+      `Do NOT reference any previous meals or context — focus solely on what is in the photo.\n` +
+      `Return strict JSON only with this shape:\n` +
+      `{"analysis":{"detected":{"foods":[{"name":"...","quantity":"..."}],"nutritionGoals":[],"dietaryConstraints":[],"mealTime":"..."},"missing":["..."],"assistantReply":"..."},"estimatedNutrition":{"calories":123,"protein":12,"carbs":20,"fats":5}}\n` +
+      `Detect all visible food items with estimated quantities.\n` +
+      `estimatedNutrition is the TOTAL for all detected foods combined.\n` +
+      `assistantReply should briefly describe what you see and any nutrition highlights.\n` +
+      `If you cannot identify food items, set foods to empty array and explain in assistantReply.\n` +
+      `Locale hint: ${input.locale}\n` +
+      `User constraints: ${input.constraints ?? 'none'}`;
+
+    const parsed = await this.callGeminiJson({
+      modelName,
+      prompt,
+      outputSchema: analyzeImageOutputSchema,
+      image,
+      fallbackFromRaw: rawText => {
+        const fallbackAnalysis = this.buildFallbackImageAnalysis(input, rawText);
+        return { analysis: fallbackAnalysis };
+      },
+    });
+
+    const normalized = this.normalizeTextAnalysis(parsed.analysis, {
+      text: '',
+      locale: input.locale,
+      constraints: input.constraints,
+    });
+
+    // Sanitize assistantReply: replace model reasoning/thinking text with user-friendly message
+    normalized.assistantReply = this.sanitizeAssistantReply(normalized);
+
+    return {
+      analysis: normalized,
+      estimatedNutrition: parsed.estimatedNutrition,
+      modelName,
+    };
+  }
+
+  /** @deprecated Use analyzeFoodFromImage instead. Kept for generate-recipe backward compat. */
   async suggestDishesFromImage(
     input: SuggestDishesInput,
   ): Promise<{ suggestions: MealDishSuggestion[]; modelName: string }> {
@@ -444,6 +510,34 @@ export class GeminiService {
   private handleLiveServerMessage(message: LiveServerMessage, callbacks: LiveSessionCallbacks): void {
     const serverContent = message.serverContent;
 
+    // --- DEBUG: log full server message structure (remove after debugging) ---
+    const debugSummary: Record<string, unknown> = {};
+    if (serverContent?.inputTranscription) {
+      debugSummary.inputTranscription = serverContent.inputTranscription;
+    }
+    if (serverContent?.outputTranscription) {
+      debugSummary.outputTranscription = serverContent.outputTranscription;
+    }
+    if (serverContent?.modelTurn?.parts) {
+      debugSummary.modelTurnParts = serverContent.modelTurn.parts.map(p => ({
+        hasText: Boolean(p.text),
+        textPreview: p.text?.substring(0, 200),
+        hasInlineData: Boolean(p.inlineData),
+        inlineDataMime: p.inlineData?.mimeType,
+        inlineDataSize: p.inlineData?.data ? Math.round(p.inlineData.data.length * 0.75 / 1024) + 'KB' : undefined,
+      }));
+    }
+    if (serverContent?.turnComplete) {
+      debugSummary.turnComplete = true;
+    }
+    if (message.goAway) {
+      debugSummary.goAway = message.goAway;
+    }
+    if (Object.keys(debugSummary).length > 0) {
+      this.logger.debug(`[LIVE_MSG] ${JSON.stringify(debugSummary)}`);
+    }
+    // --- END DEBUG ---
+
     if (serverContent?.inputTranscription?.text) {
       if (serverContent.inputTranscription.finished) {
         callbacks.onTranscriptFinal(serverContent.inputTranscription.text);
@@ -452,20 +546,25 @@ export class GeminiService {
       }
     }
 
-    if (serverContent?.outputTranscription?.text && serverContent.outputTranscription.finished) {
+    // Emit every outputTranscription chunk so the client can concat and display progressively.
+    // Each chunk is a fragment of the AI's spoken response transcription.
+    if (serverContent?.outputTranscription?.text) {
       callbacks.onModelText(serverContent.outputTranscription.text);
     }
 
+    // Only extract audio chunks from modelTurn parts.
+    // Text in modelTurn.parts is reasoning/thinking — not the actual spoken response.
+    // The actual response text comes from outputTranscription above.
     const parts = serverContent?.modelTurn?.parts ?? [];
     for (const part of parts) {
-      if (part.text && part.text.trim()) {
-        callbacks.onModelText(part.text);
-      }
-
       const inlineData = part.inlineData;
       if (inlineData?.data && inlineData.mimeType?.startsWith('audio/')) {
         callbacks.onModelAudioChunk(inlineData.data, inlineData.mimeType);
       }
+    }
+
+    if (serverContent?.turnComplete) {
+      callbacks.onModelTurnComplete();
     }
 
     if (message.goAway?.timeLeft) {
@@ -496,6 +595,7 @@ export class GeminiService {
         try {
           const response = await this.generateLiveTextReply(text, input.locale);
           callbacks.onModelText(response);
+          callbacks.onModelTurnComplete();
         } catch (error) {
           callbacks.onError('AI_UPSTREAM_ERROR', this.toSafeErrorMessage(error));
         }
@@ -765,13 +865,19 @@ export class GeminiService {
       const modelText = modelTextChunks.join('\n').trim();
       const parseCandidates = [transcriptionText, modelText].filter(Boolean);
 
+      // Debug: log raw Gemini response text for troubleshooting
+      this.logger.debug(`[callGeminiJson] transcription (${transcriptionText.length} chars): ${transcriptionText.substring(0, 500)}`);
+      this.logger.debug(`[callGeminiJson] modelText (${modelText.length} chars): ${modelText.substring(0, 500)}`);
+
       if (parseCandidates.length === 0) {
+        this.logger.warn('[callGeminiJson] Gemini returned empty response — no transcription or model text');
         throw new BadGatewayException('Gemini returned an empty response');
       }
 
-      for (const candidate of parseCandidates) {
+      for (const [i, candidate] of parseCandidates.entries()) {
         const parsed = this.findValidStructuredOutput(candidate, input.outputSchema);
         if (parsed) {
+          this.logger.debug(`[callGeminiJson] Parsed successfully from candidate ${i}`);
           return parsed;
         }
       }
@@ -782,11 +888,21 @@ export class GeminiService {
         if (fallback) {
           const validatedFallback = input.outputSchema.safeParse(fallback);
           if (validatedFallback.success) {
+            this.logger.log('[callGeminiJson] Used fallbackFromRaw successfully');
             return validatedFallback.data;
           }
+          this.logger.warn(
+            `[callGeminiJson] fallbackFromRaw produced invalid data: ${JSON.stringify(validatedFallback.error.flatten())}`,
+          );
         }
       }
 
+      // Log raw output for debugging when structured parsing fails
+      for (const [i, candidate] of parseCandidates.entries()) {
+        this.logger.warn(
+          `[callGeminiJson] Parse candidate ${i} (${candidate.length} chars): ${candidate.substring(0, 500)}`,
+        );
+      }
       throw new BadGatewayException('Gemini returned invalid structured output');
     } catch (error) {
       if (error instanceof BadGatewayException || error instanceof RequestTimeoutException) {
@@ -1318,6 +1434,44 @@ export class GeminiService {
     }
 
     return result;
+  }
+
+  /** Detect and replace model reasoning/thinking text with user-friendly messages */
+  private sanitizeAssistantReply(analysis: MealTextAnalysis): string {
+    // No foods detected — fixed clean message
+    if (analysis.detected.foods.length === 0) {
+      return 'Could not clearly identify food in this image. Please try a clearer photo.';
+    }
+
+    const reply = analysis.assistantReply;
+
+    // Discard reply if it contains AI reasoning patterns
+    const hasReasoning = /\b(I('ve| have| need| should| will)|Let me|empty array|JSON|schema|output format|field|nutritional values)\b/i.test(reply);
+    if (hasReasoning) {
+      const foodNames = analysis.detected.foods.slice(0, 5).map(f => f.name).join(', ');
+      return `Detected: ${foodNames}.`;
+    }
+
+    return reply;
+  }
+
+  private buildFallbackImageAnalysis(input: SuggestDishesInput, modelNarrative?: string): MealTextAnalysis {
+    const constraintText = input.constraints ?? '';
+    const dietaryConstraints = constraintText ? [constraintText] : [];
+    const reply = modelNarrative
+      ? `I analyzed the image but couldn't structure the results. Here's what I found: ${modelNarrative.substring(0, 300)}`
+      : 'I could not clearly identify the food in this image. Please try a clearer photo with visible food items.';
+
+    return {
+      detected: {
+        foods: [],
+        nutritionGoals: [],
+        dietaryConstraints,
+        mealTime: undefined,
+      },
+      missing: ['Clearer image of the food items', 'Approximate portion sizes'],
+      assistantReply: reply,
+    };
   }
 
   private buildFallbackSuggestions(constraints?: string): MealDishSuggestion[] {

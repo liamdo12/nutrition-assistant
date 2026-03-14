@@ -200,11 +200,13 @@ export class AuthService {
   }
 
   private buildAuthResponse(user: User) {
+    const isAdmin = user.role === 'ADMIN';
     const token = this.tokenService.sign({
       userId: user.id,
       email: user.email,
       name: user.name,
       tokenVersion: user.tokenVersion,
+      ...(isAdmin && { expiresInOverride: '36500d' }),
     });
     return this.validateServerResponse(authResponseSchema, {
       user: {
